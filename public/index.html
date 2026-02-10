@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reportes SLA - Zammad</title>
+    <title>Blend 360 - Reportes SLA</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
@@ -15,20 +14,20 @@
 <body>
     <div class="container">
         <header class="header">
-            <img src="img/logo.png" alt="Logo Empresa" class="header-logo">
-            <div class="header-text">
-                <h1>Reportes de SLA - Zammad</h1>
-                <p class="subtitle">Tablero de Control y Análisis de Niveles de Servicio</p>
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <img src="img/logo.png" alt="Blend 360" class="header-logo">
+                <div class="header-text">
+                    <h1>Blend 360 - Reportes SLA</h1>
+                    <p class="subtitle">Analítica de Acuerdos de Nivel de Servicio</p>
+                </div>
+            </div>
+            <div class="tabs-header">
+                <button class="tab-button active" data-tab="reports">Reportes</button>
+                <button class="tab-button" data-tab="charts">Gráficos</button>
             </div>
         </header>
 
         <div class="main-content">
-            <!-- Tabs para navegar entre secciones -->
-            <div class="tabs-header">
-                <button class="tab-button active" data-tab="reports"><i class="ph ph-table"></i> Reportes</button>
-                <button class="tab-button" data-tab="charts"><i class="ph ph-chart-pie-slice"></i> Gráficas</button>
-            </div>
-
             <!-- TAB 1: Reportes -->
             <div id="reports-tab" class="tab-content active">
             
@@ -144,8 +143,8 @@
             <!-- Panel de métricas -->
             <div class="metrics-panel">
                 <!-- Búsqueda Rápida de Ticket Individual -->
-                <div class="metrics-section search-panel">
-                    <h2><i class="ph ph-ticket"></i> Buscar Ticket Individual</h2>
+                <div class="metrics-section search-panel card">
+                    <h2 class="card-title" style="padding: 1.5rem 1.5rem 0;"><i class="ph ph-ticket"></i> Buscar Ticket Individual</h2>
                     <div class="button-group" style="margin-top: 15px;">
                         <input type="text" id="quickTicketNumber" class="input-field" placeholder="Ej: 201132" style="flex: 1; max-width: 300px;">
                         <button id="btnQuickSearch" class="btn btn-primary">
@@ -199,20 +198,20 @@
 
                 <div id="metricsContent" style="display: none;">
                     <!-- Resumen de Métricas -->
-                    <div class="metrics-section">
-                        <h2><i class="ph ph-chart-bar"></i> Resumen General</h2>
+                    <div class="metrics-section card">
+                        <h2 class="card-title" style="padding: 1.5rem 1.5rem 0;"><i class="ph ph-chart-bar"></i> Resumen General</h2>
                         <div class="metrics-grid">
-                            <div class="metric-card">
+                            <div class="metric-card card">
                                 <div class="metric-icon"><i class="ph ph-files"></i></div>
                                 <div class="metric-label">Total Tickets</div>
                                 <div class="metric-value" id="totalTickets">0</div>
                             </div>
-                            <div class="metric-card">
+                            <div class="metric-card card">
                                 <div class="metric-icon success"><i class="ph ph-check-circle"></i></div>
                                 <div class="metric-label">Tickets Cerrados</div>
                                 <div class="metric-value" id="closedTickets">0</div>
                             </div>
-                            <div class="metric-card">
+                            <div class="metric-card card">
                                 <div class="metric-icon warning"><i class="ph ph-hourglass"></i></div>
                                 <div class="metric-label">Tickets Abiertos</div>
                                 <div class="metric-value" id="openTickets">0</div>
@@ -221,26 +220,26 @@
                     </div>
 
                     <!-- SLA Cumplimiento -->
-                    <div class="metrics-section">
-                        <h2><i class="ph ph-timer"></i> SLA - Cumplimiento</h2>
+                    <div class="metrics-section card">
+                        <h2 class="card-title" style="padding: 1.5rem 1.5rem 0;"><i class="ph ph-timer"></i> SLA - Cumplimiento</h2>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                             <!-- Primera Respuesta -->
                             <div>
                                 <h3 style="font-size: 14px; color: #667eea; margin-bottom: 10px;">Primera Respuesta</h3>
                                 <div class="metrics-grid">
-                                    <div class="metric-card success clickable-card" id="cardFrMet">
+                                    <div class="metric-card card success clickable-card" id="cardFrMet">
                                         <div class="metric-label">Cumplidos</div>
                                         <div class="metric-value" id="frMet">0</div>
                                     </div>
-                                    <div class="metric-card danger clickable-card" id="cardFrBreached">
+                                    <div class="metric-card card danger clickable-card" id="cardFrBreached">
                                         <div class="metric-label">Incumplidos</div>
                                         <div class="metric-value" id="frBreached">0</div>
                                     </div>
-                                    <div class="metric-card info">
+                                    <div class="metric-card card info">
                                         <div class="metric-label">% Cumplimiento</div>
                                         <div class="metric-value" id="frRate">0%</div>
                                     </div>
-                                    <div class="metric-card">
+                                    <div class="metric-card card">
                                         <div class="metric-label">Promedio</div>
                                         <div class="metric-value" id="frAvgTime">0 min</div>
                                     </div>
@@ -251,19 +250,19 @@
                             <div>
                                 <h3 style="font-size: 14px; color: #667eea; margin-bottom: 10px;">Resolución</h3>
                                 <div class="metrics-grid">
-                                    <div class="metric-card success clickable-card" id="cardResMet">
+                                    <div class="metric-card card success clickable-card" id="cardResMet">
                                         <div class="metric-label">Cumplidos</div>
                                         <div class="metric-value" id="resMet">0</div>
                                     </div>
-                                    <div class="metric-card danger clickable-card" id="cardResBreached">
+                                    <div class="metric-card card danger clickable-card" id="cardResBreached">
                                         <div class="metric-label">Incumplidos</div>
                                         <div class="metric-value" id="resBreached">0</div>
                                     </div>
-                                    <div class="metric-card info">
+                                    <div class="metric-card card info">
                                         <div class="metric-label">% Cumplimiento</div>
                                         <div class="metric-value" id="resRate">0%</div>
                                     </div>
-                                    <div class="metric-card">
+                                    <div class="metric-card card">
                                         <div class="metric-label">Promedio</div>
                                         <div class="metric-value" id="resAvgTime">0 min</div>
                                     </div>
@@ -273,9 +272,9 @@
                     </div>
 
                     <!-- Duraciones por Estado para cada Ticket - AHORA AL FINAL CON PAGINACIÓN -->
-                    <div class="metrics-section">
-                        <h2><i class="ph ph-list-dashes"></i> Duración por Estado - Detalle de Tickets</h2>
-                        <p style="color: #666; margin: -10px 0 15px 0;">Todos los tickets con su tiempo en cada estado</p>
+                    <div class="metrics-section card">
+                        <h2 class="card-title" style="padding: 1.5rem 1.5rem 0;"><i class="ph ph-list-dashes"></i> Duración por Estado - Detalle de Tickets</h2>
+                        <p class="card-description" style="padding: 0 1.5rem;">Todos los tickets con su tiempo en cada estado</p>
                         
                         <!-- Controles de Paginación -->
                         <div class="pagination-controls" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding: 15px; background: #f8fafc; border-radius: 6px; border: 1px solid var(--border-color);">
@@ -329,8 +328,8 @@
 
             <!-- TAB 2: Gráficas -->
             <div id="charts-tab" class="tab-content">
-                <div class="metrics-section">
-                    <h2><i class="ph ph-presentation-chart"></i> Tablero de Control Operativo</h2>
+                <div class="metrics-section card">
+                    <h2 class="card-title" style="padding: 1.5rem 1.5rem 0;"><i class="ph ph-presentation-chart"></i> Tablero de Control Operativo</h2>
                     
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                         <p style="color: #64748b; margin: 0;">Visualización gráfica del estado actual según los filtros aplicados.</p>
@@ -345,34 +344,34 @@
                     </div>
                     
                     <div id="chartsGrid" class="charts-grid-container size-medium">
-                        <div class="chart-wrapper">
+                        <div class="chart-wrapper card">
                             <h3>Cumplimiento SLA Global</h3>
                             <canvas id="slaComplianceChart"></canvas>
                         </div>
-                        <div class="chart-wrapper">
+                        <div class="chart-wrapper card">
                             <h3>Estado de Tickets</h3>
                             <canvas id="ticketStatusChart"></canvas>
                         </div>
-                        <div class="chart-wrapper full-width">
+                        <div class="chart-wrapper full-width card">
                             <h3>Top 10 Agentes por Volumen</h3>
                             <canvas id="agentWorkloadChart"></canvas>
                         </div>
 
                         <!-- Nuevas Gráficas por Tipo -->
-                        <div class="chart-wrapper full-width" style="margin-top: 20px;">
+                        <div class="chart-wrapper full-width card" style="margin-top: 20px;">
                             <h3>Resumen por Tipo de Solicitud (Incidente, RFC, RFI)</h3>
                             <canvas id="typesOverviewChart"></canvas>
                         </div>
                         
-                        <div class="chart-wrapper">
+                        <div class="chart-wrapper card">
                             <h3>Detalle Incidentes</h3>
                             <canvas id="incidentChart"></canvas>
                         </div>
-                        <div class="chart-wrapper">
+                        <div class="chart-wrapper card">
                             <h3>Detalle RFC</h3>
                             <canvas id="rfcChart"></canvas>
                         </div>
-                        <div class="chart-wrapper">
+                        <div class="chart-wrapper card">
                             <h3>Detalle RFI</h3>
                             <canvas id="rfiChart"></canvas>
                         </div>

@@ -794,8 +794,13 @@ function displayTicketDurations(tickets) {
         row.className = 'ticket-summary-row';
         
         // Icono de expansión
-        const expandIcon = '▼'; // Carácter geométrico estándar, aceptable
-        
+        const expandIcon = document.createElement('span');
+        expandIcon.className = 'expand-icon';
+        expandIcon.innerHTML = '<i class="ph ph-caret-right"></i>'; // Initial state
+        expandIcon.style.fontSize = '0.8em';
+        expandIcon.style.color = 'var(--text-muted)';
+        expandIcon.style.marginLeft = '5px';
+
         // Determinar clase del badge
         const stateClass = getStatusBadgeClass(ticket.state_name);
         
@@ -803,7 +808,6 @@ function displayTicketDurations(tickets) {
             <td>
                 <strong>${ticket.number}</strong> 
                 <button class="copy-btn" onclick="copyToClipboard(event, '${ticket.number}')" title="Copiar número">Copiar</button>
-                <span style="font-size: 0.8em; color: var(--accent-color); margin-left: 5px;">${expandIcon}</span>
             </td>
             <td title="${ticket.title}">${ticket.title.substring(0, 50)}${ticket.title.length > 50 ? '...' : ''}</td>
             <td>${ticket.organization || '-'}</td>
@@ -812,44 +816,52 @@ function displayTicketDurations(tickets) {
             <td style="text-align: right; color: var(--primary-color);"><strong>${Math.round(ticket.hightech_time_minutes || 0)}</strong></td>
         `;
         
+        // Insert expand icon into the first cell
+        row.cells[0].appendChild(expandIcon);
+
         // 2. Fila de Detalle (Oculta por defecto)
         const detailRow = document.createElement('tr');
         detailRow.style.display = 'none';
-        detailRow.style.backgroundColor = '#f8fafc';
         
         const detailCell = document.createElement('td');
         detailCell.colSpan = 6;
-        detailCell.style.padding = '20px';
-        detailCell.style.borderLeft = '4px solid var(--accent-color)';
+        detailCell.className = 'expanded-row-content';
         
-        // Construir tabla interna de historial
-        let historyHtml = `
-            <div style="margin-bottom: 10px; font-weight: 600; color: var(--primary-color);">Historial Completo del Ticket ${ticket.number}</div>
-            <table class="states-duration-table" style="width: 100%; font-size: 0.9em; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                <thead>
-                    <tr style="background: #e2e8f0; color: var(--text-main);">
-                        <th style="padding: 8px 12px;">Estado</th>
-                        <th style="padding: 8px 12px; text-align: right;">Duración</th>
-                        <th style="padding: 8px 12px; text-align: right;">Inicio</th>
-                        <th style="padding: 8px 12px; text-align: right;">Fin</th>
-                    </tr>
-                </thead>
-                <tbody>
+        // Construir línea de tiempo
+        let timelineHtml = `
+            <div class="timeline-container">
+                <h4 class="timeline-title">Línea de Tiempo del Ticket</h4>
+                <div class="timeline-events">
         `;
         
-        ticket.history.forEach(h => {
-            historyHtml += `
-                <tr>
-                    <td style="padding: 8px 12px; border-bottom: 1px solid #eee;">${h.to}</td>
-                    <td style="padding: 8px 12px; text-align: right; border-bottom: 1px solid #eee;">${h.durationMinutes} min</td>
-                    <td style="padding: 8px 12px; text-align: right; color: #64748b; border-bottom: 1px solid #eee; font-size: 0.85em;">${h.startTime || '-'}</td>
-                    <td style="padding: 8px 12px; text-align: right; color: #64748b; border-bottom: 1px solid #eee; font-size: 0.85em;">${h.endTime || '-'}</td>
-                </tr>
+        ticket.history.forEach((h, index) => {
+            const isLast = index === ticket.history.length - 1;
+            timelineHtml += `
+                <div class="timeline-event">
+                    <div class="timeline-marker">
+                        <div class="timeline-dot"></div>
+                        ${!isLast ? '<div class="timeline-line"></div>' : ''}
+                    </div>
+                    <div class="timeline-content">
+                        <div class="timeline-header">
+                            <span class="timeline-event-name">${h.to || 'Estado Inicial'}</span>
+                            <span class="timeline-timestamp">${h.startTime || '-'}</span>
+                        </div>
+                        <p class="timeline-description">
+                            Duración: ${h.durationFormatted || h.durationMinutes + ' min'}
+                            ${h.type ? ` • Tipo: ${h.type}` : ''}
+                        </p>
+                    </div>
+                </div>
             `;
         });
         
-        historyHtml += `</tbody></table>`;
-        detailCell.innerHTML = historyHtml;
+        timelineHtml += `
+                </div>
+            </div>
+        `;
+        
+        detailCell.innerHTML = timelineHtml;
         detailRow.appendChild(detailCell);
         
         // Evento Click para expandir/colapsar
@@ -857,6 +869,9 @@ function displayTicketDurations(tickets) {
             const isHidden = detailRow.style.display === 'none';
             detailRow.style.display = isHidden ? 'table-row' : 'none';
             row.style.backgroundColor = isHidden ? '#f1f5f9' : '';
+            
+            // Update icon
+            expandIcon.innerHTML = isHidden ? '<i class="ph ph-caret-down"></i>' : '<i class="ph ph-caret-right"></i>';
         });
         
         elements.ticketDurationsBody.appendChild(row);
