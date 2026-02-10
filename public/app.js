@@ -618,7 +618,7 @@ function displayMetrics(metrics) {
 async function generateReport() {
     // Validar que se ha seleccionado un calendario
     if (!selectedCalendarType) {
-        alert('Debes seleccionar un calendario antes de generar el reporte');
+        showToast('Debes seleccionar un calendario antes de generar el reporte', 'warning');
         showCalendarSelector();
         return;
     }
@@ -698,7 +698,7 @@ async function generateReport() {
             window.URL.revokeObjectURL(url);
             document.body.removeChild(a);
             
-            alert('Reporte generado exitosamente');
+            showToast('Reporte generado exitosamente', 'success');
         } else {
             let errorMsg = 'Error al generar reporte';
             try {
@@ -711,7 +711,7 @@ async function generateReport() {
         
     } catch (error) {
         console.error('Error al generar reporte:', error);
-        alert(`Error: ${error.message}`);
+        showToast(`Error: ${error.message}`, 'error');
     } finally {
         if (elements.btnGenerateReport) {
             elements.btnGenerateReport.disabled = false;
@@ -1457,7 +1457,7 @@ function setupSLAModal() {
 
 function openSLAModal(type, status) {
     if (!allTickets || allTickets.length === 0) {
-        alert('No hay datos cargados para mostrar detalles.');
+        showToast('No hay datos cargados para mostrar detalles.', 'info');
         return;
     }
 
@@ -1564,9 +1564,74 @@ async function exportModalData() {
         }
     } catch (error) {
         console.error('Error exportando modal:', error);
-        alert('Error al exportar los datos.');
+        showToast('Error al exportar los datos.', 'error');
     } finally {
         btn.disabled = false;
         btn.innerHTML = originalText;
     }
+}
+
+// ==================== SISTEMA DE NOTIFICACIONES (TOASTS) ====================
+
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    
+    // Colores según tipo
+    let bgColor, icon;
+    switch(type) {
+        case 'success':
+            bgColor = '#10b981'; // Verde esmeralda
+            icon = '<i class="ph ph-check-circle" style="font-size: 1.2em;"></i>';
+            break;
+        case 'error':
+            bgColor = '#ef4444'; // Rojo
+            icon = '<i class="ph ph-warning-circle" style="font-size: 1.2em;"></i>';
+            break;
+        case 'warning':
+            bgColor = '#f59e0b'; // Ámbar
+            icon = '<i class="ph ph-warning" style="font-size: 1.2em;"></i>';
+            break;
+        default:
+            bgColor = '#3b82f6'; // Azul
+            icon = '<i class="ph ph-info" style="font-size: 1.2em;"></i>';
+    }
+
+    toast.style.cssText = `
+        background-color: ${bgColor};
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-family: 'Inter', sans-serif;
+        font-size: 14px;
+        min-width: 300px;
+        opacity: 0;
+        transform: translateY(20px);
+        transition: all 0.3s ease;
+    `;
+
+    toast.innerHTML = `${icon} <span>${message}</span>`;
+
+    container.appendChild(toast);
+
+    // Animación de entrada
+    requestAnimationFrame(() => {
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+    });
+
+    // Auto eliminar
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(20px)';
+        setTimeout(() => {
+            if (toast.parentNode) container.removeChild(toast);
+        }, 300);
+    }, 4000);
 }
