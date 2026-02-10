@@ -493,7 +493,14 @@ class SLAService {
       by_agent: {},
       
       // Métricas por organización/proyecto
-      by_organization: {}
+      by_organization: {},
+
+      // Métricas por tipo (Incidente, RFC, RFI)
+      by_type: {
+        'Incidente': { total: 0, closed: 0, open: 0 },
+        'RFC': { total: 0, closed: 0, open: 0 },
+        'RFI': { total: 0, closed: 0, open: 0 }
+      }
     };
     
     // Calcular tasas de cumplimiento
@@ -571,7 +578,47 @@ class SLAService {
         if (ticket.resolution_sla_met === false) metrics.by_organization[ticket.organization_name].resolution_breached++;
       }
     });
+
+    // Agrupar por tipo (Incidente, RFC, RFI)
+    // DEBUG: Mapa para contar qué tipos exactos vienen de la BD
+    const debugTypesFound = {};
+
+    tickets.forEach(ticket => {
+      const typeRaw = ticket.type || 'SIN_TIPO (NULL/VACÍO)';
+      
+      // Contar ocurrencias para el reporte de debug
+      debugTypesFound[typeRaw] = (debugTypesFound[typeRaw] || 0) + 1;
+
+      // Normalizar: minúsculas y sin acentos (para 'Petición', 'Análisis', etc.)
+      const typeLower = typeRaw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      
+      let typeKey = null;
+
+      if (typeLower.includes('incident') || typeLower.includes('problem') || typeLower.includes('incidencia')) {
+        typeKey = 'Incidente';
+      } else if (typeLower.includes('rfc') || typeLower.includes('cambio') || typeLower.includes('change')) {
+        typeKey = 'RFC';
+      } else if (typeLower.includes('rfi') || typeLower.includes('requerimiento') || typeLower.includes('peticion') || typeLower.includes('solicitud') || typeLower.includes('request') || typeLower.includes('servicio')) {
+        typeKey = 'RFI';
+      }
+
+      if (typeKey) {
+        metrics.by_type[typeKey].total++;
+        if (ticket.close_at) {
+          metrics.by_type[typeKey].closed++;
+        } else {
+          metrics.by_type[typeKey].open++;
+        }
+      }
+    });
     
+    // Imprimir reporte de debug en la consola del servidor
+    console.log('\n═══════════ DEBUG TIPOS DE TICKETS ═══════════');
+    console.log('Total tickets procesados:', tickets.length);
+    console.log('Tipos encontrados en BD:', JSON.stringify(debugTypesFound, null, 2));
+    console.log('Clasificación resultante:', JSON.stringify(metrics.by_type, null, 2));
+    console.log('══════════════════════════════════════════════\n');
+
     return metrics;
   }
 

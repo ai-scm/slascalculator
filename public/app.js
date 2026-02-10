@@ -908,6 +908,7 @@ function renderCharts(metrics) {
         return;
     }
 
+    const fontSize = 14;
     // Detectar modo oscuro para ajustar colores de gráficas
     const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
     
@@ -930,11 +931,16 @@ function renderCharts(metrics) {
     // Configuración global de fuentes para Chart.js
     Chart.defaults.color = colors.text;
     Chart.defaults.borderColor = colors.grid;
+    Chart.defaults.font.size = fontSize;
 
     // Destruir gráficas anteriores si existen
     if (chartInstances.sla) chartInstances.sla.destroy();
     if (chartInstances.status) chartInstances.status.destroy();
     if (chartInstances.agent) chartInstances.agent.destroy();
+    if (chartInstances.types) chartInstances.types.destroy();
+    if (chartInstances.incident) chartInstances.incident.destroy();
+    if (chartInstances.rfc) chartInstances.rfc.destroy();
+    if (chartInstances.rfi) chartInstances.rfi.destroy();
 
     // 1. Gráfica de Cumplimiento SLA (Barras Agrupadas)
     const ctxSla = document.getElementById('slaComplianceChart').getContext('2d');
@@ -962,7 +968,20 @@ function renderCharts(metrics) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            scales: {
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Cumplimiento SLA Global',
+                    font: { size: fontSize + 2 }
+                },
+                datalabels: {
+                    display: true,
+                    color: colors.text,
+                    anchor: 'end',
+                    align: 'top',
+                    formatter: Math.round
+                }
+            }, scales: {
                 y: { beginAtZero: true }
             }
         }
@@ -984,7 +1003,13 @@ function renderCharts(metrics) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {
+            plugins: { 
+                title: {
+                    display: true,
+                    text: 'Estado de Tickets',
+                    font: { size: fontSize + 2 }
+                },
+
                 legend: { position: 'bottom' }
             }
         }
@@ -1022,10 +1047,83 @@ function renderCharts(metrics) {
             responsive: true,
             maintainAspectRatio: false,
             scales: {
-                x: { beginAtZero: true }
+                x: { beginAtZero: true },
+            }, plugins: {
+                title: {
+                    display: true,
+                    text: 'Top 10 Agentes por Volumen',
+                    font: { size: fontSize + 2 }
+                }
             }
         }
     });
+
+    // 4. Gráfica Global por Tipos (Incidente, RFC, RFI)
+    const ctxTypes = document.getElementById('typesOverviewChart').getContext('2d');
+    const typesData = metrics.by_type || {};
+    const labels = ['Incidente', 'RFC', 'RFI'];
+    
+    const dataTotal = labels.map(l => typesData[l]?.total || 0);
+    const dataClosed = labels.map(l => typesData[l]?.closed || 0);
+    const dataOpen = labels.map(l => typesData[l]?.open || 0);
+
+    chartInstances.types = new Chart(ctxTypes, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                { label: 'Reportados', data: dataTotal, backgroundColor: colors.barTotal },
+                { label: 'Cerrados', data: dataClosed, backgroundColor: colors.success },
+                { label: 'Activos', data: dataOpen, backgroundColor: colors.open }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true } },
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Resumen por Tipo de Solicitud (Incidente, RFC, RFI)',
+                    font: { size: fontSize + 2 }
+                }
+            }
+        }
+    });
+
+    // 5. Gráficas Individuales (Incidentes, RFC, RFI)
+    const createIndividualChart = (canvasId, label, dataObj) => {
+        const ctx = document.getElementById(canvasId).getContext('2d');
+        // Usamos gráfica de barras simple para comparar los 3 estados
+        return new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Reportados', 'Cerrados', 'Activos'],
+                datasets: [{
+                    label: label,
+                    data: [dataObj.total, dataObj.closed, dataObj.open],
+                    backgroundColor: [colors.barTotal, colors.success, colors.open],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false },
+                    title: {
+                        display: true,
+                        text: label,
+                        font: { size: fontSize + 2 }
+                    }
+                },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    };
+
+    chartInstances.incident = createIndividualChart('incidentChart', 'Incidentes', typesData['Incidente'] || {total:0, closed:0, open:0});
+    chartInstances.rfc = createIndividualChart('rfcChart', 'RFC', typesData['RFC'] || {total:0, closed:0, open:0});
+    chartInstances.rfi = createIndividualChart('rfiChart', 'RFI', typesData['RFI'] || {total:0, closed:0, open:0});
 }
 
 // ==================== BÚSQUEDA RÁPIDA DE TICKETS ====================
