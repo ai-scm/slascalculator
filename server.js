@@ -9,13 +9,63 @@ const apiRoutes = require('./routes/api');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Estado de la conexión
+let isDbConnected = false;
+
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Servir archivos estáticos (frontend)
-app.use(express.static(path.join(__dirname, 'public')));
+// IMPORTANTE: { index: false } evita que se sirva index.html automáticamente en la raíz
+// Esto nos permite interceptar la ruta '/' y decidir qué mostrar
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
+
+// Middleware de verificación de conexión a BD
+app.use(async (req, res, next) => {
+  // 1. En la carga inicial (root), SIEMPRE verificar la conexión real
+  // Esto asegura que si se cayó la VPN, al recargar se detecte y muestre la pantalla de error
+  if (req.path === '/' || req.path === '/index.html') {
+    try {
+      isDbConnected = await testConnection();
+    } catch (e) {
+      isDbConnected = false;
+    }
+  }
+
+  // 2. Si ya estamos conectados, dejar pasar
+  if (isDbConnected) {
+    return next();
+  }
+
+  // Si no estamos conectados, intentar reconectar (por si el usuario activó la VPN y recargó)
+  // Solo intentamos reconectar en la ruta principal o APIs para no saturar
+  if (req.path === '/' || req.path.startsWith('/api')) {
+    try {
+      isDbConnected = await testConnection();
+      if (isDbConnected) {
+        return next(); // ¡Conexión exitosa! Dejar pasar
+      }
+    } catch (e) {
+      // Falló silenciosamente, seguiremos mostrando error
+    }
+  }
+
+  // Si llegamos aquí, NO hay conexión
+  
+  // 1. Si es una petición de API, devolver error JSON (para que el frontend no se quede cargando infinito)
+  if (req.path.startsWith('/api')) {
+    return res.status(503).json({ success: false, error: 'Base de datos no disponible. Verifique conexión VPN.' });
+  }
+
+  // 2. Si es navegación web (HTML), mostrar la página de VPN
+  if (req.accepts('html')) {
+    return res.sendFile(path.join(__dirname, 'public', 'vpn_error.html'));
+  }
+
+  next();
+});
 
 // Rutas de API
 app.use('/api', apiRoutes);
@@ -38,15 +88,15 @@ app.use((err, req, res, next) => {
 async function startServer() {
   try {
     console.log('🔄 Verificando conexión a la base de datos...');
-    const connected = await testConnection();
+    isDbConnected = await testConnection();
     
-    if (!connected) {
+    if (!isDbConnected) {
       console.log('\n⚠️  ADVERTENCIA: No se pudo conectar a la base de datos');
       console.log('   Asegúrate de que:');
       console.log('   1. La VPN esté activa');
       console.log('   2. Las credenciales en .env sean correctas');
       console.log('   3. El servidor de PostgreSQL esté accesible\n');
-      console.log('El servidor se iniciará de todos modos...\n');
+      console.log('ℹ️  El servidor iniciará en MODO RESTRINGIDO (Pantalla de VPN requerida)\n');
     }
     
     app.listen(PORT, () => {

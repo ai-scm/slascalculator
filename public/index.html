@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reportes SLA - Zammad</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="container">
@@ -20,6 +24,7 @@
             <!-- Tabs para navegar entre secciones -->
             <div class="tabs-header">
                 <button class="tab-button active" data-tab="reports">📊 Reportes</button>
+                <button class="tab-button" data-tab="charts">📈 Gráficas</button>
             </div>
 
             <!-- TAB 1: Reportes -->
@@ -320,6 +325,40 @@
                     </ul>
                 </div>
             </div> <!-- Cierre de reports-tab -->
+            </div>
+
+            <!-- TAB 2: Gráficas -->
+            <div id="charts-tab" class="tab-content">
+                <div class="metrics-section">
+                    <h2>📊 Tablero de Control Operativo</h2>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <p style="color: #64748b; margin: 0;">Visualización gráfica del estado actual según los filtros aplicados.</p>
+                        <div>
+                            <label for="chartSizeSelect" style="font-size: 0.9em; color: #64748b; font-weight: 600;">Tamaño:</label>
+                            <select id="chartSizeSelect" class="input-field" style="width: auto; display: inline-block; padding: 5px 10px; margin-left: 5px;">
+                                <option value="small">Pequeño</option>
+                                <option value="medium" selected>Mediano</option>
+                                <option value="large">Grande</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div id="chartsGrid" class="charts-grid-container size-medium">
+                        <div class="chart-wrapper">
+                            <h3>Cumplimiento SLA Global</h3>
+                            <canvas id="slaComplianceChart"></canvas>
+                        </div>
+                        <div class="chart-wrapper">
+                            <h3>Estado de Tickets</h3>
+                            <canvas id="ticketStatusChart"></canvas>
+                        </div>
+                        <div class="chart-wrapper full-width">
+                            <h3>Top 10 Agentes por Volumen</h3>
+                            <canvas id="agentWorkloadChart"></canvas>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

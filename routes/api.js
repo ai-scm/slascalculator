@@ -3,14 +3,27 @@ const router = express.Router();
 const slaService = require('../services/slaService');
 const excelService = require('../services/excelService');
 
+// Helper para manejar errores de conexión
+const handleApiError = (res, error, context) => {
+  console.error(`Error en ${context}:`, error.message);
+  
+  // Si es un error de conexión, devolver 503 para que el front recargue
+  if (error.message.includes('ECONNRESET') || 
+      error.message.includes('timeout') || 
+      error.message.includes('Connection terminated')) {
+    return res.status(503).json({ success: false, error: 'Conexión perdida. Recargando...', isConnectionError: true });
+  }
+  
+  res.status(500).json({ success: false, error: `Error al obtener ${context}` });
+};
+
 // Obtener proyectos disponibles
 router.get('/projects', async (req, res) => {
   try {
     const projects = await slaService.getProjects();
     res.json({ success: true, data: projects });
   } catch (error) {
-    console.error('Error al obtener proyectos:', error);
-    res.status(500).json({ success: false, error: 'Error al obtener proyectos' });
+    handleApiError(res, error, 'proyectos');
   }
 });
 
@@ -20,8 +33,7 @@ router.get('/agents', async (req, res) => {
     const agents = await slaService.getAgents();
     res.json({ success: true, data: agents });
   } catch (error) {
-    console.error('Error al obtener agentes:', error);
-    res.status(500).json({ success: false, error: 'Error al obtener agentes' });
+    handleApiError(res, error, 'agentes');
   }
 });
 
@@ -32,8 +44,7 @@ router.post('/metrics', async (req, res) => {
     const metrics = await slaService.getSLAMetrics(filters);
     res.json({ success: true, data: metrics });
   } catch (error) {
-    console.error('Error al obtener métricas:', error);
-    res.status(500).json({ success: false, error: 'Error al obtener métricas' });
+    handleApiError(res, error, 'métricas');
   }
 });
 
@@ -44,8 +55,7 @@ router.post('/tickets', async (req, res) => {
     const tickets = await slaService.getTicketsWithSLA(filters);
     res.json({ success: true, data: tickets });
   } catch (error) {
-    console.error('Error al obtener tickets:', error);
-    res.status(500).json({ success: false, error: 'Error al obtener tickets' });
+    handleApiError(res, error, 'tickets');
   }
 });
 
@@ -57,8 +67,7 @@ router.post('/tickets-with-durations', async (req, res) => {
     const ticketsWithDurations = await slaService.getTicketsWithStateDurations(filters, calendarType);
     res.json({ success: true, data: ticketsWithDurations });
   } catch (error) {
-    console.error('Error al obtener tickets con duraciones:', error);
-    res.status(500).json({ success: false, error: 'Error al obtener tickets con duraciones' });
+    handleApiError(res, error, 'tickets con duraciones');
   }
 });
 
@@ -68,7 +77,7 @@ router.get('/ticket-types', async (req, res) => {
     const types = await slaService.getTicketTypes();
     res.json({ success: true, data: types });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    handleApiError(res, error, 'tipos de tickets');
   }
 });
 

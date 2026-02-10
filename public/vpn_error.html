@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conexión Requerida - Zammad SLA</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: #f1f5f9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            color: #334155;
+        }
+        .card {
+            background: white;
+            padding: 50px 40px;
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            text-align: center;
+            max-width: 450px;
+            width: 90%;
+            border-top: 6px solid #0f172a;
+        }
+        .logo {
+            height: 70px;
+            margin-bottom: 30px;
+            /* Si tu logo es blanco y necesita fondo oscuro, descomenta esto: */
+            /* background-color: #0f172a; padding: 10px; border-radius: 8px; */
+        }
+        h1 {
+            color: #0f172a;
+            margin: 0 0 15px 0;
+            font-size: 1.6rem;
+            font-weight: 700;
+        }
+        p {
+            color: #64748b;
+            line-height: 1.6;
+            margin-bottom: 35px;
+            font-size: 1.05rem;
+        }
+        .btn {
+            background-color: #0ea5e9;
+            color: white;
+            border: none;
+            padding: 14px 30px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.2s, transform 0.1s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn:hover { background-color: #0284c7; transform: translateY(-1px); }
+        .icon { font-size: 3.5rem; margin-bottom: 20px; display: block; }
+        
+        /* Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(3px);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.3s;
+        }
+        
+        .modal-success {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            width: 90%;
+            border-top: 6px solid #10b981;
+        }
+        
+        .success-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            display: block;
+        }
+        
+        .modal-title {
+            color: #0f172a;
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin: 0 0 10px 0;
+        }
+        
+        .modal-text {
+            color: #64748b;
+            margin-bottom: 0;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <img src="img/logo.png" alt="Logo Empresa" class="logo">
+        <div class="icon">🔒</div>
+        <h1>Conexión VPN Requerida</h1>
+        <p>
+            No se pudo establecer conexión con la base de datos de Zammad.
+            <br><br>
+            Por favor, asegúrate de que tu <strong>VPN corporativa</strong> esté activa y conectada para acceder a este servicio.
+        </p>
+        <a href="#" class="btn" onclick="checkConnection(event)">🔄 Reintentar Conexión</a>
+    </div>
+
+    <!-- Modal de Éxito -->
+    <div id="successModal" class="modal-overlay">
+        <div class="modal-success">
+            <div class="success-icon">✅</div>
+            <h2 class="modal-title">¡Conexión Exitosa!</h2>
+            <p class="modal-text">Accediendo al sistema...</p>
+        </div>
+    </div>
+
+    <script>
+        async function checkConnection(e) {
+            e.preventDefault();
+            const btn = e.target;
+            const originalText = btn.textContent;
+            
+            // Estado de carga
+            btn.textContent = '⏳ Verificando...';
+            btn.style.opacity = '0.7';
+            btn.style.pointerEvents = 'none';
+            
+            try {
+                // Intentar conectar a una API para forzar la verificación en el servidor
+                const response = await fetch('/api/projects');
+                
+                if (response.status !== 503) {
+                    // Éxito: Mostrar modal y recargar
+                    document.getElementById('successModal').style.display = 'flex';
+                    
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                } else {
+                    throw new Error('Sin conexión');
+                }
+            } catch (error) {
+                // Fallo: Mostrar error en botón
+                setTimeout(() => {
+                    btn.textContent = '❌ Sin conexión';
+                    btn.style.backgroundColor = '#ef4444';
+                    
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                        btn.style.backgroundColor = '';
+                        btn.style.opacity = '1';
+                        btn.style.pointerEvents = 'auto';
+                    }, 2000);
+                }, 500);
+            }
+        }
+    </script>
+</body>
+</html>

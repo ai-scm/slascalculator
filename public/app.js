@@ -7,6 +7,7 @@ let itemsPerPage = 10;
 let currentSort = { field: null, direction: 'asc' }; // Estado del ordenamiento
 let currentModalType = null; // Tipo de SLA en el modal actual
 let currentModalStatus = null; // Estado de cumplimiento en el modal actual
+let chartInstances = {}; // Almacenar instancias de gráficas para destruirlas antes de actualizar
 
 // Elementos del DOM - se inicializarán en DOMContentLoaded
 let elements = {};
@@ -61,7 +62,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         cardFrMet: document.getElementById('cardFrMet'),
         cardFrBreached: document.getElementById('cardFrBreached'),
         cardResMet: document.getElementById('cardResMet'),
-        cardResBreached: document.getElementById('cardResBreached')
+        cardResBreached: document.getElementById('cardResBreached'),
+        // Chart controls
+        chartSizeSelect: document.getElementById('chartSizeSelect'),
+        chartsGrid: document.getElementById('chartsGrid')
     };
     
     console.log('✓ Elementos del DOM cargados');
@@ -127,6 +131,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (elements.btnExportModal) {
         elements.btnExportModal.addEventListener('click', exportModalData);
     }
+
+    // Event listener para cambiar tamaño de gráficas
+    if (elements.chartSizeSelect) {
+        elements.chartSizeSelect.addEventListener('change', (e) => {
+            if (elements.chartsGrid) {
+                elements.chartsGrid.className = `charts-grid-container size-${e.target.value}`;
+                // Forzar ajuste de Chart.js
+                Object.values(chartInstances).forEach(chart => chart.resize());
+            }
+        });
+    }
+
+    // Listener para cambios de tema en tiempo real (si el usuario cambia el modo del sistema)
+    if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+            if (currentMetrics) renderCharts(currentMetrics);
+        });
+    }
 });
 
 // Configurar eventos del selector de calendario
@@ -189,6 +211,13 @@ function showCalendarSelector() {
 async function loadProjects() {
     try {
         const response = await fetch('/api/projects');
+        
+        // Si hay error de conexión (503), recargar para mostrar pantalla VPN
+        if (response.status === 503) {
+            window.location.reload();
+            return;
+        }
+        
         const result = await response.json();
         
         if (result.success) {
@@ -365,6 +394,10 @@ function setupProjectSearch(projects) {
 async function loadAgents() {
     try {
         const response = await fetch('/api/agents');
+        if (response.status === 503) {
+            window.location.reload();
+            return;
+        }
         const result = await response.json();
         
         if (result.success) {
@@ -411,6 +444,10 @@ async function loadTicketTypes() {
 
     try {
         const response = await fetch('/api/ticket-types');
+        if (response.status === 503) {
+            window.location.reload();
+            return;
+        }
         const result = await response.json();
         
         if (result.success) {
@@ -534,6 +571,9 @@ async function loadMetrics() {
             
             // Cargar y mostrar duraciones por estado
             await loadAndDisplayTicketDurations(filters);
+
+            // Renderizar gráficas
+            renderCharts(result.data);
         } else {
             throw new Error(result.error);
         }
@@ -845,11 +885,147 @@ function initializeTabs() {
                 if (targetTab) {
                     targetTab.classList.add('active');
                 }
+                
+                // FIX: Redibujar gráficas al cambiar a la pestaña de gráficas
+                // Esto soluciona el problema de que Chart.js no renderiza bien en elementos ocultos
+                if (tabName === 'charts' && currentMetrics) {
+                    setTimeout(() => {
+                        renderCharts(currentMetrics);
+                    }, 50); // Pequeño retraso para asegurar que el contenedor ya es visible
+                }
             });
         });
     }
     
     console.log('✓ Sistema de TABS inicializado\n');
+}
+
+// ==================== GRÁFICAS (CHART.JS) ====================
+
+function renderCharts(metrics) {
+    if (typeof Chart === 'undefined') {
+        console.error('Chart.js no está cargado');
+        return;
+    }
+
+    // Detectar modo oscuro para ajustar colores de gráficas
+    const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    // Colores dinámicos según el tema
+    const colors = {
+        text: isDarkMode ? '#94a3b8' : '#666',
+        grid: isDarkMode ? '#334155' : '#e5e5e5',
+        success: isDarkMode ? '#059669' : '#dcfce7',
+        successBorder: isDarkMode ? '#34d399' : '#166534',
+        danger: isDarkMode ? '#991b1b' : '#fee2e2',
+        dangerBorder: isDarkMode ? '#f87171' : '#991b1b',
+        closed: isDarkMode ? '#334155' : '#f1f5f9',
+        closedBorder: isDarkMode ? '#475569' : '#cbd5e1',
+        open: isDarkMode ? '#0c4a6e' : '#e0f2fe',
+        openBorder: isDarkMode ? '#38bdf8' : '#bae6fd',
+        barTotal: isDarkMode ? '#3b82f6' : '#0f172a',
+        barClosed: isDarkMode ? '#0ea5e9' : '#0ea5e9'
+    };
+
+    // Configuración global de fuentes para Chart.js
+    Chart.defaults.color = colors.text;
+    Chart.defaults.borderColor = colors.grid;
+
+    // Destruir gráficas anteriores si existen
+    if (chartInstances.sla) chartInstances.sla.destroy();
+    if (chartInstances.status) chartInstances.status.destroy();
+    if (chartInstances.agent) chartInstances.agent.destroy();
+
+    // 1. Gráfica de Cumplimiento SLA (Barras Agrupadas)
+    const ctxSla = document.getElementById('slaComplianceChart').getContext('2d');
+    chartInstances.sla = new Chart(ctxSla, {
+        type: 'bar',
+        data: {
+            labels: ['Primera Respuesta', 'Resolución'],
+            datasets: [
+                {
+                    label: 'Cumplido',
+                    data: [metrics.first_response.met, metrics.resolution.met],
+                    backgroundColor: colors.success,
+                    borderColor: colors.successBorder,
+                    borderWidth: 1
+                },
+                {
+                    label: 'Incumplido',
+                    data: [metrics.first_response.breached, metrics.resolution.breached],
+                    backgroundColor: colors.danger,
+                    borderColor: colors.dangerBorder,
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+
+    // 2. Gráfica de Estado de Tickets (Dona)
+    const ctxStatus = document.getElementById('ticketStatusChart').getContext('2d');
+    chartInstances.status = new Chart(ctxStatus, {
+        type: 'doughnut',
+        data: {
+            labels: ['Cerrados', 'Abiertos'],
+            datasets: [{
+                data: [metrics.closed_tickets, metrics.open_tickets],
+                backgroundColor: [colors.closed, colors.open],
+                borderColor: [colors.closedBorder, colors.openBorder],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+
+    // 3. Gráfica de Agentes (Barras Horizontales - Top 10)
+    // Preparar datos: convertir objeto a array y ordenar
+    const agentData = Object.entries(metrics.by_agent)
+        .map(([name, data]) => ({ name, total: data.total, closed: data.closed }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 10); // Top 10
+
+    const ctxAgent = document.getElementById('agentWorkloadChart').getContext('2d');
+    chartInstances.agent = new Chart(ctxAgent, {
+        type: 'bar',
+        data: {
+            labels: agentData.map(a => a.name),
+            datasets: [
+                {
+                    label: 'Total Asignados',
+                    data: agentData.map(a => a.total),
+                    backgroundColor: colors.barTotal,
+                    borderRadius: 4
+                },
+                {
+                    label: 'Cerrados',
+                    data: agentData.map(a => a.closed),
+                    backgroundColor: colors.barClosed,
+                    borderRadius: 4
+                }
+            ]
+        },
+        options: {
+            indexAxis: 'y', // Barras horizontales
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { beginAtZero: true }
+            }
+        }
+    });
 }
 
 // ==================== BÚSQUEDA RÁPIDA DE TICKETS ====================

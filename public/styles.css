@@ -15,7 +15,12 @@
     --danger-bg: #fee2e2;
     --danger-text: #991b1b;
     
-    --font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    
+    /* Sombras Modernas */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 }
 
 body {
@@ -35,10 +40,10 @@ body {
 
 /* Header Corporativo */
 .header {
-    background-color: var(--primary-color);
+    background: linear-gradient(135deg, var(--primary-color) 0%, #1e293b 100%);
     color: white;
     padding: 25px 30px;
-    border-radius: 6px;
+    border-radius: 12px;
     margin-bottom: 25px;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     border-left: 5px solid var(--accent-color);
@@ -53,7 +58,7 @@ body {
     width: auto;
     background-color: #ffffff;
     padding: 5px;
-    border-radius: 6px;
+    border-radius: 8px;
 }
 
 .header h1 {
@@ -62,6 +67,7 @@ body {
     font-weight: 600;
     letter-spacing: -0.5px;
     color: white;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .subtitle {
@@ -117,10 +123,11 @@ body {
 .calendar-selector-panel, .filters-panel, .metrics-section {
     background: var(--card-bg);
     padding: 25px;
-    border-radius: 6px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    border-radius: 12px;
+    box-shadow: var(--shadow-md);
     margin-bottom: 20px;
-    border: 1px solid var(--border-color);
+    border: 1px solid rgba(203, 213, 225, 0.4); /* Borde muy sutil */
+    transition: box-shadow 0.3s ease;
 }
 
 .calendar-selector-content {
@@ -141,17 +148,19 @@ body {
     align-items: flex-start;
     gap: 15px;
     padding: 20px;
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
     cursor: pointer;
     transition: all 0.2s;
     background: #fff;
+    box-shadow: var(--shadow-sm);
 }
 
 .calendar-option:hover {
     border-color: var(--accent-color);
     background-color: #f0f9ff;
-    box-shadow: 0 0 0 1px var(--accent-color);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
 }
 
 .calendar-option h3 {
@@ -189,19 +198,20 @@ body {
 .input-field {
     width: 100%;
     padding: 8px 12px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
     font-size: 0.9rem;
     color: var(--text-main);
-    background-color: #fff;
-    transition: border-color 0.2s;
+    background-color: #f8fafc;
+    transition: all 0.2s;
     box-sizing: border-box;
 }
 
 .input-field:focus {
     outline: none;
     border-color: var(--accent-color);
-    box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.1);
+    background-color: #fff;
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
 }
 
 /* Botones */
@@ -214,11 +224,12 @@ body {
 .btn {
     padding: 10px 20px;
     border: none;
-    border-radius: 4px;
+    border-radius: 6px;
     font-weight: 600;
     font-size: 0.9rem;
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: all 0.2s;
+    box-shadow: var(--shadow-sm);
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -231,6 +242,8 @@ body {
 
 .btn-primary:hover {
     background-color: var(--primary-color);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
 }
 
 .btn-success {
@@ -240,6 +253,8 @@ body {
 
 .btn-success:hover {
     background-color: #047857;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
 }
 
 .btn-secondary {
@@ -249,6 +264,8 @@ body {
 
 .btn-secondary:hover {
     background-color: #475569;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
 }
 
 .btn-link {
@@ -271,9 +288,10 @@ body {
 .metric-card {
     background: #fff;
     padding: 15px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
     text-align: center;
+    box-shadow: var(--shadow-sm);
 }
 
 .metric-card.success { background: #f0fdf4; border-color: #bbf7d0; }
@@ -297,7 +315,7 @@ body {
 /* Tablas de Datos */
 .table-container {
     overflow-x: auto;
-    border: 1px solid var(--border-color);
+    border: 1px solid #e2e8f0;
     border-radius: 4px;
 }
 
@@ -309,11 +327,14 @@ body {
 
 .states-duration-table th {
     background-color: #f8fafc;
-    color: var(--text-main);
+    color: #475569;
     font-weight: 600;
     text-align: left;
     padding: 12px 15px;
-    border-bottom: 2px solid var(--border-color);
+    border-bottom: 1px solid #e2e8f0;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
 }
 
 .states-duration-table td {
@@ -437,8 +458,8 @@ body {
     height: 100%; 
     overflow: auto; 
     background-color: rgba(0,0,0,0.5); 
+    backdrop-filter: blur(4px); /* Efecto Glassmorphism */
     animation: fadeIn 0.2s;
-    backdrop-filter: blur(2px);
 }
 
 .modal-content {
@@ -448,8 +469,8 @@ body {
     border: 1px solid #888;
     width: 90%; 
     max-width: 1100px;
-    border-radius: 8px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    border-radius: 12px;
+    box-shadow: var(--shadow-xl);
     position: relative;
     display: flex;
     flex-direction: column;
@@ -492,7 +513,7 @@ body {
 
 .clickable-card:hover {
     transform: translateY(-3px);
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-lg);
     z-index: 1;
 }
 
@@ -510,4 +531,153 @@ body {
 
 .clickable-card:hover::after {
     opacity: 1;
+}
+
+/* Estilos para Gráficas */
+.charts-grid-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 25px;
+    margin-top: 20px;
+}
+
+/* Control de tamaño de gráficas */
+.charts-grid-container.size-small .chart-wrapper { height: 300px; }
+.charts-grid-container.size-medium .chart-wrapper { height: 450px; }
+.charts-grid-container.size-large .chart-wrapper { height: 600px; }
+
+.chart-wrapper {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    box-shadow: var(--shadow-md);
+    height: 450px; /* Altura por defecto (Mediano) */
+    overflow: hidden; /* Evita que la gráfica se desborde */
+    position: relative;
+}
+
+/* =========================================
+   MODO OSCURO (Automático por Sistema)
+   ========================================= */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --primary-color: #3b82f6;       /* Azul más brillante para modo oscuro */
+        --primary-light: #1e293b;       /* Slate 800 */
+        --accent-color: #38bdf8;        /* Sky 400 */
+        --background-color: #0f172a;    /* Slate 900 (Fondo principal) */
+        --card-bg: #1e293b;             /* Slate 800 (Tarjetas) */
+        --text-main: #f1f5f9;           /* Slate 100 (Texto principal) */
+        --text-muted: #94a3b8;          /* Slate 400 (Texto secundario) */
+        --border-color: #334155;        /* Slate 700 (Bordes) */
+        
+        /* Estados Dark Mode (Colores más apagados para no encandilar) */
+        --success-bg: #064e3b;          /* Emerald 900 */
+        --success-text: #6ee7b7;        /* Emerald 300 */
+        --danger-bg: #7f1d1d;           /* Red 900 */
+        --danger-text: #fca5a5;         /* Red 300 */
+        
+        /* Sombras Dark Mode (más sutiles) */
+        --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.5);
+        --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.5);
+        --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.5);
+        --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.5), 0 10px 10px -5px rgb(0 0 0 / 0.5);
+    }
+
+    /* Ajustes específicos para componentes en modo oscuro */
+    .header {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        border-left-color: var(--accent-color);
+    }
+
+    .header h1 {
+        text-shadow: none;
+    }
+
+    /* Elementos con bordes específicos */
+    .calendar-option, .input-field, .metric-card, .chart-wrapper, .modal-content {
+        border-color: var(--border-color);
+    }
+
+    .calendar-option:hover {
+        background-color: #334155;
+    }
+
+    /* Inputs */
+    .input-field {
+        background-color: #0f172a;
+        color: var(--text-main);
+    }
+    
+    .input-field:focus {
+        background-color: #0f172a;
+        box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+    }
+
+    /* Tabs */
+    .tab-button:hover {
+        background-color: #334155;
+        color: var(--text-main);
+    }
+
+    /* Tablas */
+    .states-duration-table th {
+        background-color: #0f172a;
+        color: var(--text-muted);
+        border-bottom-color: var(--border-color);
+    }
+
+    .states-duration-table tr:hover {
+        background-color: #334155;
+    }
+    
+    .states-duration-table td {
+        border-bottom-color: var(--border-color);
+    }
+
+    /* Badges de Estado (Colores adaptados) */
+    .status-new, .status-open, .status-abierto, .status-nuevo { background-color: #0c4a6e; color: #bae6fd; border-color: #075985; }
+    .status-pending, .status-espera, .status-en-espera { background-color: #451a03; color: #fed7aa; border-color: #9a3412; }
+    .status-solved, .status-resuelto { background-color: #064e3b; color: #6ee7b7; border-color: #065f46; }
+    .status-closed, .status-cerrado { background-color: #334155; color: #cbd5e1; border-color: #475569; }
+    .status-rejected, .status-cancelado { background-color: #450a0a; color: #fca5a5; border-color: #7f1d1d; }
+
+    /* Métricas Cards overrides */
+    .metric-card.success { background: #064e3b; border-color: #065f46; }
+    .metric-card.danger { background: #450a0a; border-color: #7f1d1d; }
+    .metric-card.info { background: #0c4a6e; border-color: #075985; }
+
+    /* Modal */
+    .modal-header {
+        background-color: #0f172a;
+        border-bottom-color: var(--border-color);
+    }
+    
+    .close-modal { color: var(--text-muted); }
+    .close-modal:hover { color: var(--text-main); }
+
+    /* Autocomplete */
+    .autocomplete-results { background-color: var(--card-bg); border-color: var(--border-color); }
+    .autocomplete-item { color: var(--text-main); border-bottom-color: var(--border-color); }
+    .autocomplete-item:hover { background-color: #334155; color: var(--accent-color); }
+    
+    /* Botones */
+    .btn-secondary { background-color: #334155; border: 1px solid var(--border-color); }
+    .btn-secondary:hover { background-color: #475569; }
+    
+    .copy-btn:hover { background-color: #334155; color: var(--accent-color); }
+    .sortable-header:hover { background-color: #334155; }
+}
+
+.chart-wrapper.full-width {
+    grid-column: 1 / -1;
+}
+
+.chart-wrapper h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 1rem;
+    color: var(--text-muted);
+    text-align: center;
+    font-weight: 600;
 }

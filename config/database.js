@@ -9,9 +9,10 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD,
   // Importante: configuración para conexión a través de VPN con SSL
   ssl: { rejectUnauthorized: false },
-  connectionTimeoutMillis: 10000,
+  connectionTimeoutMillis: 2000,
   idleTimeoutMillis: 30000,
-  max: 10
+  max: 10,
+  keepAlive: true
 });
 
 pool.on('error', (err) => {
