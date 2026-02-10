@@ -102,14 +102,15 @@ router.get('/ticket-history/:number', async (req, res) => {
 // Generar reporte Excel
 router.post('/generate-report', async (req, res) => {
   try {
-    const filters = req.body;
+    // AHORA: El body contiene filtros y las imágenes de las gráficas
+    const { filters, charts } = req.body;
     
-    // Obtener datos
+    // Obtener datos frescos para el reporte
     const tickets = await slaService.getTicketsWithSLA(filters);
     const metrics = await slaService.getSLAMetrics(filters);
     
-    // Generar Excel
-    const workbook = await excelService.generateSLAReport(tickets, metrics, filters);
+    // Generar Excel, pasando las gráficas al servicio
+    const workbook = await excelService.generateSLAReport(tickets, metrics, filters, charts);
     
     // Configurar respuesta
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

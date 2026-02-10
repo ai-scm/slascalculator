@@ -580,15 +580,9 @@ class SLAService {
     });
 
     // Agrupar por tipo (Incidente, RFC, RFI)
-    // DEBUG: Mapa para contar qué tipos exactos vienen de la BD
-    const debugTypesFound = {};
-
     tickets.forEach(ticket => {
       const typeRaw = ticket.type || 'SIN_TIPO (NULL/VACÍO)';
       
-      // Contar ocurrencias para el reporte de debug
-      debugTypesFound[typeRaw] = (debugTypesFound[typeRaw] || 0) + 1;
-
       // Normalizar: minúsculas y sin acentos (para 'Petición', 'Análisis', etc.)
       const typeLower = typeRaw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       
@@ -612,13 +606,6 @@ class SLAService {
       }
     });
     
-    // Imprimir reporte de debug en la consola del servidor
-    console.log('\n═══════════ DEBUG TIPOS DE TICKETS ═══════════');
-    console.log('Total tickets procesados:', tickets.length);
-    console.log('Tipos encontrados en BD:', JSON.stringify(debugTypesFound, null, 2));
-    console.log('Clasificación resultante:', JSON.stringify(metrics.by_type, null, 2));
-    console.log('══════════════════════════════════════════════\n');
-
     return metrics;
   }
 

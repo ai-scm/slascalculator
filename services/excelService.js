@@ -3,13 +3,16 @@ const moment = require('moment');
 
 class ExcelService {
   
-  async generateSLAReport(tickets, metrics, filters) {
+  async generateSLAReport(tickets, metrics, filters, charts = {}) {
     const workbook = new ExcelJS.Workbook();
     
     // Metadatos del archivo
     workbook.creator = 'Zammad SLA Reporter';
     workbook.created = new Date();
     
+    // Hoja 0: Dashboard Gráfico (NUEVA)
+    this.createDashboardSheet(workbook, charts);
+
     // Hoja 1: Resumen Ejecutivo
     this.createSummarySheet(workbook, metrics, filters);
     
@@ -33,6 +36,85 @@ class ExcelService {
     this.createTicketsSheet(workbook, tickets);
     
     return workbook;
+  }
+
+  createDashboardSheet(workbook, charts) {
+    // Si no hay gráficas, no crear la hoja
+    if (!charts || Object.keys(charts).length === 0) {
+      return;
+    }
+
+    const sheet = workbook.addWorksheet('Dashboard Gráfico', { views: [{ showGridLines: false, zoomScale: 85 }] });
+
+    // Título del Dashboard
+    sheet.mergeCells('A1:O1');
+    const titleCell = sheet.getCell('A1');
+    titleCell.value = 'DASHBOARD OPERATIVO - ZAMMAD SLA';
+    titleCell.font = { size: 18, bold: true, color: { argb: 'FFFFFFFF' } };
+    titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0066CC' } };
+    titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+    sheet.getRow(1).height = 40;
+
+    // Función auxiliar para añadir imagen
+    const addChartImage = (key, col, row, width, height) => {
+      if (charts[key]) {
+        // Eliminar el prefijo data:image/png;base64, para obtener solo los datos
+        const base64Data = charts[key].replace(/^data:image\/\w+;base64,/, "");
+        
+        // Validar que la imagen tenga contenido real (una imagen vacía "data:," tiene longitud 0 tras el replace o muy corta)
+        if (base64Data.length < 100) {
+          console.log(`      ⚠️ ADVERTENCIA: La imagen "${key}" parece vacía o corrupta (longitud: ${base64Data.length}). Se omite.`);
+          return;
+        }
+
+        const imageId = workbook.addImage({
+          base64: base64Data,
+          extension: 'png',
+        });
+
+        sheet.addImage(imageId, {
+          tl: { col: col, row: row },
+          ext: { width: width, height: height }
+        });
+      }
+    };
+
+    // --- FILA 1 DE GRÁFICAS ---
+    
+    // 1. Cumplimiento SLA (A3)
+    addChartImage('sla', 0, 2, 500, 300);
+
+    // 2. Estado Tickets (F3) - Un poco más a la derecha
+    addChartImage('status', 6, 2, 400, 300);
+
+    // 3. Top Agentes (K3)
+    addChartImage('agent', 11, 2, 500, 300);
+
+    // --- FILA 2 DE GRÁFICAS ---
+
+    // 4. Resumen por Tipos (A18) - Ancho completo
+    addChartImage('types', 0, 17, 900, 350);
+
+    // --- FILA 3 DE GRÁFICAS (Detalles) ---
+
+    // 5. Incidentes (A36)
+    addChartImage('incident', 0, 35, 400, 300);
+
+    // 6. RFC (E36)
+    addChartImage('rfc', 6, 35, 400, 300);
+
+    // 7. RFI (I36)
+    addChartImage('rfi', 12, 35, 400, 300);
+
+    // Añadir etiquetas de texto simples sobre las secciones (opcional)
+    const setSectionTitle = (cellRef, text) => {
+      const cell = sheet.getCell(cellRef);
+      cell.value = text;
+      cell.font = { size: 14, bold: true, color: { argb: 'FF333333' } };
+    };
+
+    // Ajustar un poco el ancho de las columnas base para que no se vea tan comprimido si no cargan las imágenes
+    sheet.columns.forEach(col => { col.width = 10; });
   }
 
   createSummarySheet(workbook, metrics, filters) {

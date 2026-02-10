@@ -541,7 +541,7 @@ async function loadMetrics() {
             elements.errorMessage.style.display = 'block';
         }
         showCalendarSelector();
-        return;
+        return false;
     }
     
     const filters = getFilters();
@@ -574,6 +574,7 @@ async function loadMetrics() {
 
             // Renderizar gráficas
             renderCharts(result.data);
+            return true;
         } else {
             throw new Error(result.error);
         }
@@ -584,6 +585,7 @@ async function loadMetrics() {
             elements.errorMessage.style.display = 'block';
             elements.errorMessage.textContent = 'Error al cargar métricas. Intenta de nuevo.';
         }
+        return false;
     } finally {
         if (elements.loadingIndicator) elements.loadingIndicator.style.display = 'none';
     }
@@ -621,7 +623,52 @@ async function generateReport() {
         return;
     }
     
+    // 1. Cargar métricas primero para asegurar datos frescos y gráficas actualizadas
+    const metricsLoaded = await loadMetrics();
+    if (!metricsLoaded) return;
+
+    // Esperar un momento para que las animaciones de las gráficas terminen antes de capturarlas
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
     const filters = getFilters();
+    
+    // --- NUEVO: Capturar imágenes de las gráficas ---
+    const chartImages = {};
+    
+    // HACK: Las gráficas están en una pestaña oculta (display: none), por lo que el canvas tiene tamaño 0
+    // y toBase64Image() devuelve "data:," (vacío).
+    // Solución: Hacer visible el contenedor temporalmente, redimensionar gráficas, esperar renderizado y capturar.
+    const chartsTab = document.getElementById('charts-tab');
+    const isHidden = chartsTab.classList.contains('active') === false || getComputedStyle(chartsTab).display === 'none';
+    let originalStyles = {};
+
+    if (isHidden) {
+        // Guardar estilos originales
+        originalStyles = { position: chartsTab.style.position, visibility: chartsTab.style.visibility, display: chartsTab.style.display };
+        // Hacer visible pero fuera de pantalla para no causar parpadeo
+        chartsTab.style.position = 'absolute';
+        chartsTab.style.visibility = 'hidden';
+        chartsTab.style.display = 'block';
+        
+        // Forzar redimensionado y actualización de todas las gráficas
+        Object.values(chartInstances).forEach(chart => { chart.resize(); chart.update('none'); });
+        // Pequeña pausa para asegurar que el motor de renderizado del navegador pinte el canvas
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    // Capturar imágenes
+    for (const [key, chart] of Object.entries(chartInstances)) {
+        if (chart && chart.canvas) { 
+            chartImages[key] = chart.canvas.toDataURL('image/png');
+        }
+    }
+    
+    // Restaurar estado original
+    if (isHidden) {
+        chartsTab.style.position = originalStyles.position;
+        chartsTab.style.visibility = originalStyles.visibility;
+        chartsTab.style.display = originalStyles.display;
+    }
     
     // Deshabilitar botón durante la generación
     if (elements.btnGenerateReport) {
@@ -635,7 +682,8 @@ async function generateReport() {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(filters)
+            // --- MODIFICADO: Enviar filtros Y las imágenes de las gráficas ---
+            body: JSON.stringify({ filters, charts: chartImages })
         });
         
         if (response.ok) {
@@ -652,12 +700,18 @@ async function generateReport() {
             
             alert('Reporte generado exitosamente');
         } else {
-            throw new Error('Error al generar reporte');
+            let errorMsg = 'Error al generar reporte';
+            try {
+                const errorData = await response.json();
+                if (errorData.error) errorMsg = errorData.error;
+            } catch (e) { console.error('Error parsing error response:', e); }
+            
+            throw new Error(errorMsg);
         }
         
     } catch (error) {
         console.error('Error al generar reporte:', error);
-        alert('Error al generar el reporte. Por favor intenta nuevamente.');
+        alert(`Error: ${error.message}`);
     } finally {
         if (elements.btnGenerateReport) {
             elements.btnGenerateReport.disabled = false;
@@ -908,6 +962,19 @@ function renderCharts(metrics) {
         return;
     }
 
+    // Plugin para fondo blanco (CRUCIAL para exportación a Excel)
+    const whiteBackground = {
+        id: 'customCanvasBackgroundColor',
+        beforeDraw: (chart, args, options) => {
+            const {ctx} = chart;
+            ctx.save();
+            ctx.globalCompositeOperation = 'destination-over';
+            ctx.fillStyle = options.color || '#ffffff';
+            ctx.fillRect(0, 0, chart.width, chart.height);
+            ctx.restore();
+        }
+    };
+
     const fontSize = 14;
     // Detectar modo oscuro para ajustar colores de gráficas
     const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -981,10 +1048,13 @@ function renderCharts(metrics) {
                     align: 'top',
                     formatter: Math.round
                 }
-            }, scales: {
+            },
+            customCanvasBackgroundColor: { color: '#ffffff' }, // Configuración del fondo
+            scales: {
                 y: { beginAtZero: true }
             }
-        }
+        },
+        plugins: [whiteBackground] // Activar plugin
     });
 
     // 2. Gráfica de Estado de Tickets (Dona)
@@ -1009,10 +1079,22 @@ function renderCharts(metrics) {
                     text: 'Estado de Tickets',
                     font: { size: fontSize + 2 }
                 },
-
-                legend: { position: 'bottom' }
+                datalabels: {
+                    display: true,
+                    color: isDarkMode ? '#e2e8f0' : '#333', // Color oscuro para contraste en fondo blanco
+                    font: { weight: 'bold' },
+                    formatter: (value, ctx) => {
+                        if (value === 0) return '';
+                        const total = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                        const percentage = total > 0 ? (value / total * 100).toFixed(0) + '%' : '0%';
+                        return percentage;
+                    }
+                },
+                legend: { position: 'bottom' },
+                customCanvasBackgroundColor: { color: '#ffffff' }
             }
-        }
+        },
+        plugins: [whiteBackground]
     });
 
     // 3. Gráfica de Agentes (Barras Horizontales - Top 10)
@@ -1053,9 +1135,18 @@ function renderCharts(metrics) {
                     display: true,
                     text: 'Top 10 Agentes por Volumen',
                     font: { size: fontSize + 2 }
-                }
+                },
+                datalabels: {
+                    display: true,
+                    color: isDarkMode ? '#e2e8f0' : '#333',
+                    anchor: 'end',
+                    align: 'start',
+                    font: { weight: 'bold' }
+                },
+                customCanvasBackgroundColor: { color: '#ffffff' }
             }
-        }
+        },
+        plugins: [whiteBackground]
     });
 
     // 4. Gráfica Global por Tipos (Incidente, RFC, RFI)
@@ -1086,38 +1177,61 @@ function renderCharts(metrics) {
                     display: true,
                     text: 'Resumen por Tipo de Solicitud (Incidente, RFC, RFI)',
                     font: { size: fontSize + 2 }
-                }
+                },
+                datalabels: {
+                    display: true,
+                    color: colors.text,
+                    anchor: 'end',
+                    align: 'top',
+                    formatter: (value) => value > 0 ? Math.round(value) : '',
+                    font: { weight: 'bold' }
+                },
+                customCanvasBackgroundColor: { color: '#ffffff' }
             }
-        }
+        },
+        plugins: [whiteBackground]
     });
 
     // 5. Gráficas Individuales (Incidentes, RFC, RFI)
     const createIndividualChart = (canvasId, label, dataObj) => {
         const ctx = document.getElementById(canvasId).getContext('2d');
-        // Usamos gráfica de barras simple para comparar los 3 estados
+        // CAMBIO: Usamos gráfica de DONA para mejor visualización de proporción
         return new Chart(ctx, {
-            type: 'bar',
+            type: 'doughnut',
             data: {
-                labels: ['Reportados', 'Cerrados', 'Activos'],
+                labels: ['Cerrados', 'Activos'],
                 datasets: [{
-                    label: label,
-                    data: [dataObj.total, dataObj.closed, dataObj.open],
-                    backgroundColor: [colors.barTotal, colors.success, colors.open],
-                    borderWidth: 1
+                    data: [dataObj.closed, dataObj.open],
+                    backgroundColor: [colors.success, colors.open],
+                    borderColor: '#ffffff',
+                    borderWidth: 2
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false },
+                plugins: { 
+                    legend: { position: 'bottom' },
+                    datalabels: {
+                        display: true,
+                        color: isDarkMode ? '#fff' : '#333',
+                        font: { weight: 'bold' },
+                        formatter: (value, ctx) => {
+                            if (value === 0) return '';
+                            const total = dataObj.closed + dataObj.open;
+                            const percentage = Math.round((value / total) * 100) + '%';
+                            return `${value}\n(${percentage})`; // Muestra valor y porcentaje
+                        }
+                    },
                     title: {
                         display: true,
-                        text: label,
+                        text: `${label} (Total: ${dataObj.total})`,
                         font: { size: fontSize + 2 }
-                    }
+                    },
+                    customCanvasBackgroundColor: { color: '#ffffff' }
                 },
-                scales: { y: { beginAtZero: true } }
-            }
+            },
+            plugins: [whiteBackground]
         });
     };
 

@@ -14,8 +14,8 @@ let isDbConnected = false;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Servir archivos estáticos (frontend)
 // IMPORTANTE: { index: false } evita que se sirva index.html automáticamente en la raíz
@@ -78,6 +78,15 @@ app.get('/', (req, res) => {
 // Manejo de errores
 app.use((err, req, res, next) => {
   console.error('Error no manejado:', err);
+  
+  // Manejo específico para PayloadTooLargeError
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({ 
+      success: false, 
+      error: 'La solicitud es demasiado grande. Por favor reinicia el servidor para aplicar los cambios de configuración.' 
+    });
+  }
+  
   res.status(500).json({ 
     success: false, 
     error: 'Error interno del servidor' 
