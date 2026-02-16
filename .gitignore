@@ -24,9 +24,12 @@ Thumbs.db
 logs/
 *.log
 
-# Archivos generados
+# Build output
+frontend/dist/
 dist/
 build/
+
+# Archivos generados
 *.xlsx
 *.xls
 

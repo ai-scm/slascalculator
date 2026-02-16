@@ -4,6 +4,7 @@ import { useApp } from '../../context/AppContext';
 import Button from '../common/Button';
 import Input from '../common/Input';
 import Select from '../common/Select';
+import SearchSelect from '../common/SearchSelect';
 
 const FilterPanel = ({ onLoadMetrics, onExportExcel }) => {
   const { state, dispatch } = useApp();
@@ -43,13 +44,18 @@ const FilterPanel = ({ onLoadMetrics, onExportExcel }) => {
   }));
 
   const stateOptions = [
-    { value: 'nuevo', label: 'Nuevo' },
-    { value: 'abierto', label: 'Abierto' },
-    { value: 'en_progreso', label: 'En Progreso' },
-    { value: 'en_espera', label: 'En Espera' },
-    { value: 'resuelto', label: 'Resuelto' },
-    { value: 'cerrado', label: 'Cerrado' },
+    { value: 'Nuevo', label: 'Nuevo' },
+    { value: 'Abierto', label: 'Abierto' },
+    { value: 'En Progreso', label: 'En Progreso' },
+    { value: 'En Espera', label: 'En Espera' },
+    { value: 'Resuelto', label: 'Resuelto' },
+    { value: 'Cerrado', label: 'Cerrado' },
   ];
+
+  const typeOptions = state.ticketTypes.map(t => ({
+    value: t,
+    label: t
+  }));
 
   const handleFilterChange = (field, value) => {
     // Convertir strings vacíos a null para que filterNullValues los elimine
@@ -71,7 +77,7 @@ const FilterPanel = ({ onLoadMetrics, onExportExcel }) => {
 
     dispatch({ type: 'SET_FILTERS', payload: normalizedFilters });
     if (onLoadMetrics) {
-      onLoadMetrics();
+      onLoadMetrics(normalizedFilters);
     }
   };
 
@@ -105,7 +111,7 @@ const FilterPanel = ({ onLoadMetrics, onExportExcel }) => {
   return (
     <div className="bg-white rounded-card shadow-card p-6">
       {/* Grid de filtros */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         {/* Búsqueda por Número de Ticket */}
         <Input
           type="text"
@@ -133,12 +139,21 @@ const FilterPanel = ({ onLoadMetrics, onExportExcel }) => {
         />
 
         {/* Proyecto */}
-        <Select
+        <SearchSelect
           label="Proyecto"
-          placeholder="Todos los Proyectos"
+          placeholder="Buscar proyecto..."
           options={projectOptions}
           value={localFilters.organizationId || ''}
-          onChange={(e) => handleFilterChange('organizationId', e.target.value)}
+          onChange={(val) => handleFilterChange('organizationId', val)}
+        />
+
+        {/* Tipo de Solicitud */}
+        <SearchSelect
+          label="Tipo de Solicitud"
+          placeholder="Buscar tipo..."
+          options={typeOptions}
+          value={localFilters.type || ''}
+          onChange={(val) => handleFilterChange('type', val)}
         />
 
         {/* Agente */}

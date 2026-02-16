@@ -4,10 +4,11 @@
   "description": "Sistema de reportes personalizados de SLA para Zammad con React",
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:backend": "cd backend && npm start",
+    "dev:backend": "cd backend && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",
     "build": "cd frontend && npm run build",
-    "preview": "cd frontend && npm run preview"
+    "start": "cd backend && node server.js",
+    "install:all": "cd backend && npm install && cd ../frontend && npm install"
   },
   "keywords": ["zammad", "sla", "reports", "react"],
   "author": "",

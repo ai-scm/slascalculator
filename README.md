@@ -1,71 +1,90 @@
 # Blend 360 - Reportes SLA para Zammad
 
-Sistema de análisis y generación de reportes de Acuerdos de Nivel de Servicio (SLA) para tickets de Zammad. Esta aplicación permite visualizar métricas clave, cumplimiento de SLA y exportar informes detallados en Excel.
+Sistema de reportes de Acuerdos de Nivel de Servicio (SLA) para tickets de Zammad. Permite visualizar metricas, cumplimiento de SLA y exportar informes en Excel.
 
-##  Características
+## Requisitos
 
-*   **Tablero de Control (Dashboard):** Visualización gráfica de cumplimiento de SLA, estado de tickets y carga de trabajo por agente.
-*   **Cálculo de SLA Personalizado:** Soporte para diferentes calendarios (Horario Laboral, 24/7, Extendido) y exclusión de tiempos en estados de espera ("Tiempo Hightech" vs "Tiempo Cliente").
-*   **Filtros Avanzados:** Filtrado por fecha, proyecto, agente, estado y tipo de solicitud.
-*   **Detalle de Tickets:** Vista detallada con línea de tiempo (timeline) de los cambios de estado y duración en cada etapa.
-*   **Exportación a Excel:** Generación de reportes en Excel que incluye:
-    *   Dashboard gráfico (imágenes de las gráficas actuales).
-    *   Resumen ejecutivo.
-    *   Detalle completo de tickets.
-*   **Verificación de VPN:** Middleware de seguridad que valida la conexión a la base de datos antes de permitir el acceso.
+- Node.js 18+
+- Acceso a la base de datos PostgreSQL de Zammad
 
-## 📋 Requisitos Previos
+## Estructura del proyecto
 
-*   Node.js (v14 o superior)
-*   Acceso a la base de datos PostgreSQL de Zammad.
-*   Conexión VPN activa (si la base de datos está en una red privada).
-
-## ️ Instalación
-
-1.  Clonar el repositorio:
-    ```bash
-    git clone <url-del-repositorio>
-    cd zammad-sla-reporter
-    ```
-
-2.  Instalar dependencias:
-    ```bash
-    npm install
-    ```
-
-## ⚙️ Configuración
-
-Crea un archivo `.env` en la raíz del proyecto con las credenciales de tu base de datos:
-
-```env
-DB_HOST=192.168.x.x
-DB_PORT=5432
-DB_NAME=zammad
-DB_USER=tu_usuario
-DB_PASSWORD=tu_contraseña
-PORT=3000
+```
+zammad-sla-reporter/
+├── backend/          # API Express (Node.js)
+│   ├── server.js     # Servidor principal
+│   ├── routes/       # Endpoints API
+│   ├── services/     # Logica de negocio (SLA, Excel)
+│   └── config/       # Base de datos, constantes
+├── frontend/         # App React (Vite)
+│   ├── src/          # Codigo fuente React
+│   ├── public/       # Assets estaticos (logo)
+│   └── dist/         # Build de produccion (generado)
+└── package.json      # Scripts raiz
 ```
 
-## ▶️ Ejecución
+## Desarrollo local
 
-Para iniciar el servidor:
-
+1. Configurar variables de entorno:
 ```bash
-npm start
+cp .env.example backend/.env
 ```
 
-Para desarrollo (con reinicio automático):
+Editar `backend/.env`:
+```
+DB_HOST=<host PostgreSQL>
+DB_PORT=5432
+DB_NAME=postgres
+DB_USER=<usuario>
+DB_PASSWORD=<contraseña>
+PORT=3000
+TIMEZONE=America/Mexico_City
+```
 
+2. Instalar dependencias:
+```bash
+npm run install:all
+```
+
+3. Iniciar en modo desarrollo (backend + frontend con hot reload):
 ```bash
 npm run dev
 ```
 
-Accede a la aplicación en: `http://localhost:3000`
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:3000/api
 
-## 📂 Estructura del Proyecto
+## Despliegue en produccion (EC2)
 
-*   `public/`: Frontend (HTML, CSS, JS, Assets).
-*   `routes/`: Endpoints de la API (`api.js`).
-*   `services/`: Lógica de negocio (`slaService.js`, `excelService.js`, `workingHoursService.js`).
-*   `config/`: Configuración de base de datos (`database.js`).
-*   `server.js`: Servidor Express y configuración principal.
+1. Clonar e instalar:
+```bash
+git clone <url-del-repositorio>
+cd zammad-sla-reporter
+npm run install:all
+```
+
+2. Configurar variables de entorno en `backend/.env`
+
+3. Build del frontend:
+```bash
+npm run build
+```
+
+4. Iniciar servidor:
+```bash
+npm start
+```
+
+La aplicacion queda disponible en `http://<ip-del-ec2>:3000`. El servidor Express sirve tanto la API (`/api/*`) como el frontend React desde una sola instancia.
+
+## Variables de entorno
+
+| Variable | Descripcion |
+|----------|-------------|
+| `DB_HOST` | Host de PostgreSQL (Zammad) |
+| `DB_PORT` | Puerto de PostgreSQL (default 5432) |
+| `DB_NAME` | Nombre de la base de datos |
+| `DB_USER` | Usuario de la base de datos |
+| `DB_PASSWORD` | Contraseña de la base de datos |
+| `PORT` | Puerto del servidor (default 3000) |
+| `TIMEZONE` | Zona horaria (default America/Mexico_City) |

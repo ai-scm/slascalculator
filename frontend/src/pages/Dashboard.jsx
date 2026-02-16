@@ -17,10 +17,13 @@ import SLAProgress from '../components/metrics/SLAProgress';
 import SLATrendChart from '../components/charts/SLATrendChart';
 import TicketDistributionChart from '../components/charts/TicketDistributionChart';
 import TicketsTable from '../components/tables/TicketsTable';
+import VPNConnectionModal from '../components/modals/VPNConnectionModal';
 
 const Dashboard = () => {
   const { state, dispatch } = useApp();
   const [loading, setLoading] = useState(false);
+  const [showVPNModal, setShowVPNModal] = useState(false);
+  const [vpnRetrying, setVpnRetrying] = useState(false);
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -39,15 +42,23 @@ const Dashboard = () => {
       dispatch({ type: 'SET_PROJECTS', payload: projects });
       dispatch({ type: 'SET_AGENTS', payload: agents });
       dispatch({ type: 'SET_TICKET_TYPES', payload: ticketTypes });
+      setShowVPNModal(false);
     } catch (error) {
       console.error('Error cargando datos iniciales:', error);
-      dispatch({ type: 'SET_ERROR', payload: error });
+      setShowVPNModal(true);
     }
   };
 
-  const handleLoadMetrics = async () => {
+  const handleVPNRetry = async () => {
+    setVpnRetrying(true);
+    await loadInitialData();
+    setVpnRetrying(false);
+  };
+
+  const handleLoadMetrics = async (filtersOverride) => {
     console.log('🚀 [Dashboard] Iniciando carga de métricas...');
     console.log('🚀 [Dashboard] state.filters:', state.filters);
+    console.log('🚀 [Dashboard] filtersOverride:', filtersOverride);
     console.log('🚀 [Dashboard] state.selectedCalendarType:', state.selectedCalendarType);
 
     setLoading(true);
@@ -55,7 +66,7 @@ const Dashboard = () => {
 
     try {
       const filters = {
-        ...state.filters,
+        ...(filtersOverride || state.filters),
         calendarType: state.selectedCalendarType
       };
       console.log('🚀 [Dashboard] Filtros combinados a enviar:', filters);
@@ -169,13 +180,16 @@ const Dashboard = () => {
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
       <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <h1 className="text-3xl font-bold text-gray-900">
-            Dashboard de SLA
-          </h1>
-          <p className="text-gray-500 mt-1">
-            Sistema de reportes personalizados para Zammad
-          </p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center gap-4">
+          <img src="/logo.png" alt="Blend" className="h-10" />
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              Dashboard de SLA
+            </h1>
+            <p className="text-gray-500 text-sm">
+              Sistema de reportes personalizados para Zammad
+            </p>
+          </div>
         </div>
       </header>
 
@@ -276,6 +290,11 @@ const Dashboard = () => {
           )}
         </div>
       </main>
+
+      {/* VPN Modal */}
+      {showVPNModal && (
+        <VPNConnectionModal onRetry={handleVPNRetry} retrying={vpnRetrying} />
+      )}
     </div>
   );
 };
