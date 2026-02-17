@@ -1,7 +1,7 @@
 {
   "name": "zammad-sla-reporter",
   "version": "2.0.0",
-  "description": "Sistema de reportes personalizados de SLA para Zammad con React",
+  "description": "Sistema de reportes personalizados de SLA con React",
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:backend": "cd backend && npm run dev",

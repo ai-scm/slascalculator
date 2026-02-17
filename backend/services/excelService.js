@@ -7,7 +7,7 @@ class ExcelService {
     const workbook = new ExcelJS.Workbook();
     
     // Metadatos del archivo
-    workbook.creator = 'Zammad SLA Reporter';
+    workbook.creator = 'Service Center SLA Reporter';
     workbook.created = new Date();
     
     // Hoja 0: Dashboard Gráfico (NUEVA)
