@@ -30,7 +30,7 @@ class ExcelService {
 
   async generateTicketsListReport(tickets) {
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'Zammad SLA Reporter';
+    workbook.creator = 'Service Center SLA Reporter';
     workbook.created = new Date();
     
     this.createTicketsSheet(workbook, tickets);
