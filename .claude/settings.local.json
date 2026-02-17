@@ -6,7 +6,11 @@
       "Bash(py:*)",
       "Bash(export PATH=\"$PATH:/c/Users/Maximiliano Pulido/AppData/Roaming/Python/Python312/Scripts\")",
       "Bash(eb:*)",
-      "Bash(aws:*)"
+      "Bash(aws:*)",
+      "Bash(npm run build:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }

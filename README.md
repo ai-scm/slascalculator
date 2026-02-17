@@ -6,21 +6,24 @@ Sistema de reportes de Acuerdos de Nivel de Servicio (SLA) para tickets de Zamma
 
 - Node.js 18+
 - Acceso a la base de datos PostgreSQL de Zammad
+- VPN corporativa (para acceder a la EC2 y al RDS)
 
 ## Estructura del proyecto
 
 ```
 zammad-sla-reporter/
-├── backend/          # API Express (Node.js)
-│   ├── server.js     # Servidor principal
-│   ├── routes/       # Endpoints API
-│   ├── services/     # Logica de negocio (SLA, Excel)
-│   └── config/       # Base de datos, constantes
-├── frontend/         # App React (Vite)
-│   ├── src/          # Codigo fuente React
-│   ├── public/       # Assets estaticos (logo)
-│   └── dist/         # Build de produccion (generado)
-└── package.json      # Scripts raiz
+├── backend/              # API Express (Node.js)
+│   ├── server.js         # Servidor principal
+│   ├── Dockerfile        # Imagen Docker para despliegue
+│   ├── routes/           # Endpoints API
+│   ├── services/         # Logica de negocio (SLA, Excel)
+│   └── config/           # Base de datos, constantes
+├── frontend/             # App React (Vite)
+│   ├── src/              # Codigo fuente React
+│   ├── public/           # Assets estaticos (logo)
+│   └── dist/             # Build de produccion (generado)
+├── deploy.sh             # Script de despliegue
+└── package.json          # Scripts raiz
 ```
 
 ## Desarrollo local
@@ -30,16 +33,7 @@ zammad-sla-reporter/
 cp .env.example backend/.env
 ```
 
-Editar `backend/.env`:
-```
-DB_HOST=<host PostgreSQL>
-DB_PORT=5432
-DB_NAME=postgres
-DB_USER=<usuario>
-DB_PASSWORD=<contraseña>
-PORT=3000
-TIMEZONE=America/Mexico_City
-```
+Editar `backend/.env` con las credenciales reales de la base de datos.
 
 2. Instalar dependencias:
 ```bash
@@ -54,37 +48,98 @@ npm run dev
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:3000/api
 
-## Despliegue en produccion (EC2)
+## Produccion
 
-1. Clonar e instalar:
+### Infraestructura
+
+| Componente | Servicio | Detalle |
+|-----------|----------|---------|
+| Backend + Frontend | EC2 | `10.67.4.151` (IP privada, requiere VPN) |
+| Base de datos | RDS PostgreSQL | Base de datos de Zammad (solo lectura) |
+| Puerto | 443 | Abierto en Security Group |
+
+### Acceder al servidor
+
 ```bash
-git clone <url-del-repositorio>
-cd zammad-sla-reporter
-npm run install:all
+ssh -i "nuv-prod-ai-servicecenter-informespk 1.pem" ec2-user@10.67.4.151
 ```
 
-2. Configurar variables de entorno en `backend/.env`
+### Desplegar cambios en produccion
 
-3. Build del frontend:
+**1. Hacer push de los cambios desde tu PC:**
 ```bash
+git add .
+git commit -m "descripcion del cambio"
+git push
+```
+
+**2. Conectarse a la EC2 por SSH y actualizar:**
+```bash
+ssh -i "nuv-prod-ai-servicecenter-informespk 1.pem" ec2-user@10.67.4.151
+```
+
+**3. Si cambiaste el backend:**
+```bash
+cd /home/ec2-user/slascalculator
+git pull
+cd backend && npm install
+sudo kill $(pgrep -f "node server.js")
+sudo nohup node server.js > /home/ec2-user/app.log 2>&1 &
+```
+
+**4. Si cambiaste el frontend:**
+
+Primero en tu PC local:
+```bash
+cd frontend
 npm run build
 ```
 
-4. Iniciar servidor:
+Subir el build a la EC2 (desde otra terminal local):
 ```bash
-npm start
+scp -i "nuv-prod-ai-servicecenter-informespk 1.pem" -r frontend/dist ec2-user@10.67.4.151:/home/ec2-user/slascalculator/frontend/
 ```
 
-La aplicacion queda disponible en `http://<ip-del-ec2>:3000`. El servidor Express sirve tanto la API (`/api/*`) como el frontend React desde una sola instancia.
+Luego reiniciar el servidor en la EC2:
+```bash
+sudo kill $(pgrep -f "node server.js")
+cd /home/ec2-user/slascalculator/backend
+sudo nohup node server.js > /home/ec2-user/app.log 2>&1 &
+```
+
+### Ver logs del servidor
+
+```bash
+# Logs en tiempo real
+tail -f /home/ec2-user/app.log
+
+# Estado del servidor
+curl http://localhost:443/api/projects | head -c 100
+```
+
+### URL de la aplicacion
+
+```
+http://10.67.4.151:443
+```
+Requiere VPN corporativa activa.
 
 ## Variables de entorno
 
-| Variable | Descripcion |
-|----------|-------------|
-| `DB_HOST` | Host de PostgreSQL (Zammad) |
-| `DB_PORT` | Puerto de PostgreSQL (default 5432) |
-| `DB_NAME` | Nombre de la base de datos |
-| `DB_USER` | Usuario de la base de datos |
-| `DB_PASSWORD` | Contraseña de la base de datos |
-| `PORT` | Puerto del servidor (default 3000) |
-| `TIMEZONE` | Zona horaria (default America/Mexico_City) |
+| Variable | Descripcion | Ejemplo |
+|----------|-------------|---------|
+| `DB_HOST` | Host de PostgreSQL (Zammad) | `xxx.rds.amazonaws.com` |
+| `DB_PORT` | Puerto de PostgreSQL | `5432` |
+| `DB_NAME` | Nombre de la base de datos | `postgres` |
+| `DB_USER` | Usuario de la base de datos | `cloud` |
+| `DB_PASSWORD` | Contrasena de la base de datos | `****` |
+| `PORT` | Puerto del servidor | `443` |
+| `TIMEZONE` | Zona horaria | `America/Mexico_City` |
+| `CORS_ORIGIN` | Dominios permitidos para CORS | `*` |
+| `SERVE_FRONTEND` | Servir frontend desde Express | `true` |
+
+## Repositorio
+
+```
+https://github.com/mapube16/slascalculator.git
+```
