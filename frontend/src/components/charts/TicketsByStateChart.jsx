@@ -20,20 +20,17 @@ const STATE_CONFIG = [
   { name: 'Diagnostico',   bg: 'rgba(249, 115, 22, 0.8)',  border: '#F97316' },
   { name: 'En progreso',   bg: 'rgba(234, 179, 8, 0.8)',   border: '#EAB308' },
   { name: 'En Espera',     bg: 'rgba(156, 163, 175, 0.8)', border: '#9CA3AF' },
-  { name: 'Resuelto',      bg: 'rgba(34, 197, 94, 0.8)',   border: '#22C55E' },
-  { name: 'Cerrado',       bg: 'rgba(21, 128, 61, 0.8)',   border: '#15803D' },
-  { name: 'Cancelado',     bg: 'rgba(239, 68, 68, 0.8)',   border: '#EF4444' },
 ];
+
+// Estados excluidos de las barras
+const EXCLUDED_STATES = new Set(['Cerrado', 'Cancelado', 'Resuelto']);
 
 const COLOR_MAP = Object.fromEntries(STATE_CONFIG.map(s => [s.name, s]));
 const DEFAULT_COLOR = { bg: 'rgba(107, 114, 128, 0.8)', border: '#6B7280' };
 
-const formatMinutes = (minutes) => {
-  if (!minutes || minutes <= 0) return '0m';
-  const h = Math.floor(minutes / 60);
-  const m = Math.round(minutes % 60);
-  if (h === 0) return `${m}m`;
-  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+const minutesToDays = (minutes) => {
+  if (!minutes || minutes <= 0) return 0;
+  return parseFloat((minutes / 1440).toFixed(2));
 };
 
 const truncate = (str, max) => {
@@ -48,16 +45,21 @@ const TicketsByStateChart = ({ tickets }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [activeState, setActiveState] = useState(null); // null = todos
 
+  // Tickets sin estados excluidos
+  const activeTickets = useMemo(() => {
+    if (!tickets) return [];
+    return tickets.filter(t => !EXCLUDED_STATES.has(t.state_name));
+  }, [tickets]);
+
   // Conteo por estado
   const stateCounts = useMemo(() => {
     const counts = {};
-    if (!tickets) return counts;
-    tickets.forEach(t => {
+    activeTickets.forEach(t => {
       const s = t.state_name || 'Sin estado';
       counts[s] = (counts[s] || 0) + 1;
     });
     return counts;
-  }, [tickets]);
+  }, [activeTickets]);
 
   // Selección simple: click = filtrar, click de nuevo = mostrar todos
   const handleStateClick = useCallback((stateName) => {
@@ -67,11 +69,11 @@ const TicketsByStateChart = ({ tickets }) => {
 
   // Tickets filtrados y ordenados
   const filteredTickets = useMemo(() => {
-    if (!tickets || tickets.length === 0) return [];
+    if (activeTickets.length === 0) return [];
 
-    let filtered = tickets;
+    let filtered = activeTickets;
     if (activeState) {
-      filtered = tickets.filter(t => t.state_name === activeState);
+      filtered = activeTickets.filter(t => t.state_name === activeState);
     }
 
     // Agrupar por estado y ordenar por tiempo desc dentro de cada grupo
@@ -95,7 +97,7 @@ const TicketsByStateChart = ({ tickets }) => {
     const result = [];
     sortedKeys.forEach(s => grouped[s].forEach(t => result.push(t)));
     return result;
-  }, [tickets, activeState]);
+  }, [activeTickets, activeState]);
 
   // Paginación
   const totalPages = Math.max(1, Math.ceil(filteredTickets.length / pageSize));
@@ -114,7 +116,7 @@ const TicketsByStateChart = ({ tickets }) => {
       chartData: {
         labels: paginatedTickets.map(t => `#${t.ticket_number} - ${truncate(t.title, 25)}`),
         datasets: [{
-          data: paginatedTickets.map(t => t.hightech_time_minutes || 0),
+          data: paginatedTickets.map(t => minutesToDays(t.hightech_time_minutes)),
           backgroundColor: paginatedTickets.map(t => (COLOR_MAP[t.state_name] || DEFAULT_COLOR).bg),
           borderColor: paginatedTickets.map(t => (COLOR_MAP[t.state_name] || DEFAULT_COLOR).border),
           borderWidth: 1,
@@ -163,10 +165,10 @@ const TicketsByStateChart = ({ tickets }) => {
     scales: {
       x: {
         beginAtZero: true,
-        title: { display: true, text: 'Tiempo', font: { size: 12, family: 'Inter, sans-serif' } },
+        title: { display: true, text: 'Días', font: { size: 12, family: 'Inter, sans-serif' } },
         ticks: {
           font: { size: 11, family: 'Inter, sans-serif' },
-          callback: (v) => v >= 60 ? `${Math.round(v / 60)}h` : `${v}m`
+          callback: (v) => `${v}d`
         },
         grid: { color: 'rgba(0, 0, 0, 0.05)' }
       },
@@ -187,7 +189,7 @@ const TicketsByStateChart = ({ tickets }) => {
     }
   }), [paginatedTickets, dispatch]);
 
-  if (!tickets || tickets.length === 0) return null;
+  if (!activeTickets.length) return null;
 
   return (
     <Card padding="none">
@@ -230,7 +232,7 @@ const TicketsByStateChart = ({ tickets }) => {
                 : 'bg-white hover:bg-gray-50 text-gray-700 border-gray-300'
               }`}
           >
-            Todos ({tickets.length})
+            Todos ({activeTickets.length})
           </button>
 
           {STATE_CONFIG.map(({ name, border }) => {
