@@ -8,6 +8,7 @@ const DATABASE = {
   BATCH_SIZE: 200, // Number of tickets to process per batch to avoid connection saturation
   HISTORY_ATTRIBUTE_IDS: {
     STATE_CHANGE: 13, // history_attribute_id for ticket state changes
+    OWNER_CHANGE: 14, // history_attribute_id for ticket owner/agent changes
   }
 };
 

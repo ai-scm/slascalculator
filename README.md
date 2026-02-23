@@ -124,6 +124,117 @@ http://10.67.4.151:443
 ```
 Requiere VPN corporativa activa.
 
+## Endpoint de exportacion para AWS QuickSight
+
+### `POST /api/export/quicksight`
+
+Retorna toda la data de SLA en formato aplanado (sin objetos anidados), listo para ser consumido por una Lambda de AWS y escrito a S3 como CSV para QuickSight.
+
+**Request Body (todos los campos son opcionales):**
+
+```json
+{
+  "startDate": "2026-01-01T00:00:00Z",
+  "endDate": "2026-02-28T23:59:59Z",
+  "organizationId": 5,
+  "ownerId": 10,
+  "state": "Abierto",
+  "type": "Incidente",
+  "calendarType": "laboral"
+}
+```
+
+**Tipos de calendario:** `laboral` (L-V 8am-5pm), `24-7` (24 horas), `extended` (todos los dias 8am-10pm)
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "metadata": {
+    "exported_at": "2026-02-23T20:53:00.000Z",
+    "filters_applied": {},
+    "total_records": 245
+  },
+  "data": {
+    "tickets": [
+      {
+        "ticket_id": 1001,
+        "ticket_number": "1001",
+        "title": "No puedo acceder al sistema",
+        "type": "Incidente",
+        "state": "Cerrado",
+        "priority": "Media",
+        "organization": "[P2068] UNA - Contrato 4",
+        "empresa": "Universidad Nacional",
+        "owner": "Juan Perez",
+        "customer": "Maria Lopez",
+        "created_at": "2026-01-15T14:30:00.000Z",
+        "close_at": "2026-01-17T19:45:00.000Z",
+        "hightech_time_minutes": 240,
+        "client_time_minutes": 120,
+        "first_response_time_minutes": 45,
+        "sla_first_response_target_minutes": 240,
+        "sla_resolution_target_minutes": 3360,
+        "first_response_sla_met": true,
+        "resolution_sla_met": true
+      }
+    ],
+    "summary": {
+      "total_tickets": 245,
+      "closed_tickets": 180,
+      "open_tickets": 65,
+      "first_response_compliance_rate": "85.71",
+      "resolution_compliance_rate": "79.59"
+    },
+    "by_agent": [
+      {
+        "agent_name": "Juan Perez",
+        "total_tickets": 45,
+        "first_response_compliance_rate": "93.33",
+        "resolution_compliance_rate": "77.78"
+      }
+    ],
+    "by_organization": [
+      {
+        "organization_name": "[P2068] UNA - Contrato 4",
+        "total_tickets": 30,
+        "first_response_compliance_rate": "93.33",
+        "resolution_compliance_rate": "73.33"
+      }
+    ],
+    "by_type": [
+      { "type_name": "Incidente", "total_tickets": 100, "closed_tickets": 80, "open_tickets": 20 }
+    ]
+  }
+}
+```
+
+### Pipeline AWS QuickSight (propuesto)
+
+```
+EventBridge (cada 30 min) --> Lambda (fetch + write CSV) --> S3 --> QuickSight SPICE
+                                       |
+                                       v HTTP POST
+                             Backend /api/export/quicksight
+```
+
+| Servicio | Costo/mes |
+|----------|-----------|
+| EventBridge (1,440 invocaciones) | $0.00 (free tier) |
+| Lambda (1,440 x 2s x 128MB) | ~$0.04 |
+| S3 (storage + PUTs) | ~$0.01 |
+| QuickSight Author (1 usuario) | $12-24 |
+
+### Probar en Postman
+
+```
+POST http://10.67.4.151:443/api/export/quicksight
+Content-Type: application/json
+
+Body: {}
+```
+
 ## Variables de entorno
 
 | Variable | Descripcion | Ejemplo |

@@ -118,16 +118,24 @@ router.get('/ticket-history/:number', ticketHistoryValidation, validate, async (
 });
 
 // Exportar datos consolidados para QuickSight (data aplanada, sin historial crudo)
-router.post('/export/quicksight', filtersValidation, validate, async (req, res) => {
+// Siempre trae TODOS los tickets historicos, ignora fechas
+router.post('/export/quicksight', async (req, res) => {
   try {
-    const filters = req.body;
+    // Ignorar startDate/endDate para traer todo el historico
+    const { startDate, endDate, ...optionalFilters } = req.body || {};
+    const filters = { ...optionalFilters };
     const exportTimestamp = new Date().toISOString();
 
-    // Obtener tickets y métricas usando la lógica existente
+    const calendarType = filters.calendarType || 'laboral';
+
+    // Obtener tickets y métricas usando la lógica existente (sin filtro de fechas)
     const [tickets, metrics] = await Promise.all([
       slaService.getTicketsWithSLA(filters),
       slaService.getSLAMetrics(filters)
     ]);
+
+    // Construir linea de tiempo con cambios de estado + responsable
+    const ticketTimeline = await slaService.buildTicketTimelines(tickets, calendarType);
 
     // 1. Tickets aplanados (sin raw_history para reducir peso)
     const flatTickets = tickets.map(t => ({
@@ -227,6 +235,7 @@ router.post('/export/quicksight', filtersValidation, validate, async (req, res) 
       },
       data: {
         tickets: flatTickets,
+        ticket_timeline: ticketTimeline,
         summary,
         by_agent: byAgent,
         by_organization: byOrganization,

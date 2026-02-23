@@ -108,6 +108,148 @@ class SLAService {
     }
   }
 
+  /**
+   * Helper: Get ticket owner change histories from database (attribute_id = 14)
+   * @param {Array} ticketIds - Array of ticket IDs
+   * @returns {Object} - Map of ticketId -> array of owner change events
+   */
+  async _getOwnerHistories(ticketIds) {
+    const ids = Array.isArray(ticketIds) ? ticketIds : [ticketIds];
+    if (!ids || ids.length === 0) return {};
+
+    try {
+      const historiesMap = {};
+      const batchSize = DATABASE.BATCH_SIZE;
+
+      for (let i = 0; i < ids.length; i += batchSize) {
+        const batchIds = ids.slice(i, i + batchSize);
+        const result = await pool.query(`
+          SELECT o_id, created_at, value_from, value_to
+          FROM histories
+          WHERE o_id = ANY($1::int[])
+            AND history_attribute_id = $2
+          ORDER BY o_id, created_at ASC
+        `, [batchIds, DATABASE.HISTORY_ATTRIBUTE_IDS.OWNER_CHANGE]);
+
+        result.rows.forEach(h => {
+          if (!historiesMap[h.o_id]) historiesMap[h.o_id] = [];
+          historiesMap[h.o_id].push(h);
+        });
+      }
+      return historiesMap;
+    } catch (error) {
+      logger.error('Error fetching owner histories', error, { ticketIds: ids });
+      return {};
+    }
+  }
+
+  /**
+   * Construir linea de tiempo aplanada para todos los tickets.
+   * Mergea cambios de estado + cambios de owner cronologicamente.
+   * Cada fila = un periodo donde el ticket estuvo en X estado con Y responsable.
+   * @param {Array} tickets - Tickets from getTicketsWithSLA (con raw_history)
+   * @param {string} calendarType - Tipo de calendario
+   * @returns {Array} - Array aplanado de periodos de timeline
+   */
+  async buildTicketTimelines(tickets, calendarType = 'laboral') {
+    if (!tickets || tickets.length === 0) return [];
+
+    const ticketIds = tickets.map(t => t.id);
+    const ownerHistoriesMap = await this._getOwnerHistories(ticketIds);
+
+    const excludedStates = STATE_GROUPS.HIGHTECH_EXCLUDED;
+    const waitStates = STATE_GROUPS.CUSTOMER_WAITING;
+    const allTimelines = [];
+
+    for (const ticket of tickets) {
+      const stateEvents = (ticket.raw_history || []).map(h => ({
+        time: new Date(h.created_at).getTime(),
+        type: 'state',
+        from: h.value_from,
+        to: h.value_to
+      }));
+
+      const ownerEvents = (ownerHistoriesMap[ticket.id] || []).map(h => ({
+        time: new Date(h.created_at).getTime(),
+        type: 'owner',
+        from: h.value_from,
+        to: h.value_to
+      }));
+
+      // Determinar estado y owner inicial (antes de cualquier cambio)
+      let currentState = stateEvents.length > 0
+        ? (stateEvents[0].from || 'Nuevo')
+        : ticket.state_name;
+      let currentOwner = ownerEvents.length > 0
+        ? (ownerEvents[0].from || 'Sin asignar')
+        : ticket.owner_name;
+      if (currentOwner === '-' || !currentOwner) currentOwner = 'Sin asignar';
+
+      // Agrupar eventos por timestamp (estado + owner pueden cambiar juntos)
+      const eventGroups = {};
+      for (const event of [...stateEvents, ...ownerEvents]) {
+        if (!eventGroups[event.time]) eventGroups[event.time] = [];
+        eventGroups[event.time].push(event);
+      }
+
+      const timestamps = Object.keys(eventGroups).map(Number).sort((a, b) => a - b);
+      let periodStart = ticket.created_at;
+      const endTime = ticket.close_at || this._getNowInDbFormat();
+      let step = 1;
+
+      for (const ts of timestamps) {
+        const eventTime = new Date(ts);
+        // Calcular duracion del periodo ANTERIOR a este evento
+        const duration = workingHours.calculateWorkingMinutes(periodStart, eventTime, calendarType);
+        const isWaiting = waitStates.includes(currentState);
+        const isExcluded = excludedStates.includes(currentState);
+        const periodType = isWaiting ? 'Cliente' : (isExcluded ? 'Excluido' : 'Empresa');
+
+        allTimelines.push({
+          ticket_number: ticket.ticket_number,
+          title: ticket.title,
+          organization: ticket.organization_name,
+          empresa: ticket.empresa,
+          state: currentState,
+          owner: currentOwner,
+          start_time: moment(periodStart).utcOffset(-5).format('YYYY-MM-DD HH:mm:ss'),
+          end_time: moment(eventTime).utcOffset(-5).format('YYYY-MM-DD HH:mm:ss'),
+          duration_minutes: Math.round(duration),
+          period_type: periodType,
+          step: step++
+        });
+
+        // Aplicar todos los cambios de este timestamp
+        for (const event of eventGroups[ts]) {
+          if (event.type === 'state') currentState = event.to;
+          if (event.type === 'owner') currentOwner = event.to || 'Sin asignar';
+        }
+        periodStart = eventTime;
+      }
+
+      // Periodo final (ultimo evento -> cierre o ahora)
+      const finalDuration = workingHours.calculateWorkingMinutes(periodStart, endTime, calendarType);
+      const isWaiting = waitStates.includes(currentState);
+      const isExcluded = excludedStates.includes(currentState);
+
+      allTimelines.push({
+        ticket_number: ticket.ticket_number,
+        title: ticket.title,
+        organization: ticket.organization_name,
+        empresa: ticket.empresa,
+        state: currentState,
+        owner: currentOwner,
+        start_time: moment(periodStart).utcOffset(-5).format('YYYY-MM-DD HH:mm:ss'),
+        end_time: moment(endTime).utcOffset(-5).format('YYYY-MM-DD HH:mm:ss'),
+        duration_minutes: Math.round(finalDuration),
+        period_type: isWaiting ? 'Cliente' : (isExcluded ? 'Excluido' : 'Empresa'),
+        step: step
+      });
+    }
+
+    return allTimelines;
+  }
+
   // Obtener todos los tickets con información completa desde tabla tickets
   async getTicketsWithSLA(filters = {}) {
     console.log('\n🎫 [SLAService] getTicketsWithSLA llamado con filtros:', filters);
