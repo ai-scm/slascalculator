@@ -28,6 +28,7 @@ const initialState = {
   // UI State
   loading: false,
   error: null,
+  toasts: [],
 
   // Paginación
   pagination: {
@@ -198,6 +199,19 @@ function appReducer(state, action) {
           ticketNumber: null,
           data: null
         }
+      };
+
+    // ==================== TOASTS ====================
+    case 'ADD_TOAST':
+      return {
+        ...state,
+        toasts: [...state.toasts, { id: Date.now(), ...action.payload }]
+      };
+
+    case 'REMOVE_TOAST':
+      return {
+        ...state,
+        toasts: state.toasts.filter(t => t.id !== action.payload)
       };
 
     default:

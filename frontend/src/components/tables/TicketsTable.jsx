@@ -85,9 +85,10 @@ const TicketsTable = ({ tickets = [] }) => {
         <h3 className="text-lg font-semibold text-gray-900 mb-4">
           Datos Detallados de Tickets
         </h3>
-        <p className="text-gray-500 text-center py-8">
-          No hay tickets para mostrar
-        </p>
+        <div className="text-center py-8">
+          <p className="text-gray-500 mb-1">No hay tickets para mostrar</p>
+          <p className="text-gray-400 text-sm">Ajusta los filtros o el rango de fechas e intenta nuevamente</p>
+        </div>
       </Card>
     );
   }
@@ -131,9 +132,9 @@ const TicketsTable = ({ tickets = [] }) => {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto max-h-[600px] overflow-y-auto scrollbar-thin">
         <table className="table">
-          <thead>
+          <thead className="sticky top-0 z-10 bg-gray-50">
             <tr>
               <th
                 className="cursor-pointer hover:bg-gray-100"

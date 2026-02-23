@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
-import { X, Clock, Calendar, User, Tag } from 'phosphor-react';
+import { X, Clock, Calendar, User, Tag, ArrowRight } from 'phosphor-react';
 import { apiService } from '../../services/api';
 import { useApp } from '../../context/AppContext';
+
+const PERIOD_COLORS = {
+  Empresa: { dot: 'bg-blue-500', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', line: 'bg-blue-300' },
+  Cliente: { dot: 'bg-amber-500', bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', line: 'bg-amber-300' },
+  Excluido: { dot: 'bg-gray-400', bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-500', line: 'bg-gray-300' }
+};
 
 const TicketDetailModal = ({ ticketNumber, onClose }) => {
   const { state } = useApp();
@@ -32,8 +38,6 @@ const TicketDetailModal = ({ ticketNumber, onClose }) => {
 
   const formatDate = (dateString) => {
     if (!dateString || dateString === 'Abierto') return dateString || '-';
-    // Backend already returns formatted dates: 'YYYY-MM-DD HH:mm:ss'
-    // Convert to ES locale format
     try {
       const date = new Date(dateString);
       return date.toLocaleString('es-ES', {
@@ -47,6 +51,26 @@ const TicketDetailModal = ({ ticketNumber, onClose }) => {
       return dateString;
     }
   };
+
+  const formatShortDate = (dateString) => {
+    if (!dateString) return '-';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleString('es-ES', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  // Calculate max duration for proportional bar widths
+  const maxDuration = ticketDetail?.history
+    ? Math.max(...ticketDetail.history.map(h => h.durationMinutes || 0), 1)
+    : 1;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -166,69 +190,102 @@ const TicketDetailModal = ({ ticketNumber, onClose }) => {
                 </div>
               </div>
 
-              {/* Historial de Estados */}
+              {/* Leyenda */}
+              <div className="flex gap-4 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-blue-500"></span>
+                  Empresa
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-amber-500"></span>
+                  Cliente
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-gray-400"></span>
+                  Excluido
+                </div>
+              </div>
+
+              {/* Línea de Tiempo Visual */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
                   <Calendar size={16} />
-                  Historial de Estados - Duraciones por Estado
+                  Línea de Tiempo
                 </h3>
 
                 {ticketDetail.history && ticketDetail.history.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-100">
-                        <tr>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">Estado</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">Tipo</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">Inicio</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-600">Fin</th>
-                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-600">Duración</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {ticketDetail.history.map((state, index) => (
-                          <tr key={index} className={`hover:bg-gray-50 ${state.isCurrent ? 'bg-blue-50' : ''}`}>
-                            <td className="px-4 py-3">
-                              <span className={`badge ${
-                                state.to?.toLowerCase().includes('cerrado')
-                                  ? 'badge-success'
-                                  : state.to?.toLowerCase().includes('nuevo') || state.to?.toLowerCase().includes('abierto')
-                                  ? 'badge-danger'
-                                  : 'badge-warning'
-                              }`}>
-                                {state.to || '-'}
+                  <div className="relative">
+                    {ticketDetail.history.map((entry, index) => {
+                      const colors = PERIOD_COLORS[entry.type] || PERIOD_COLORS.Excluido;
+                      const isLast = index === ticketDetail.history.length - 1;
+                      const barWidth = maxDuration > 0
+                        ? Math.max((entry.durationMinutes / maxDuration) * 100, 4)
+                        : 4;
+
+                      return (
+                        <div key={index} className="flex gap-4 group">
+                          {/* Timeline rail */}
+                          <div className="flex flex-col items-center w-6 flex-shrink-0">
+                            <div className={`w-4 h-4 rounded-full ${colors.dot} ring-4 ring-white shadow-sm z-10 flex-shrink-0`}></div>
+                            {!isLast && (
+                              <div className={`w-0.5 flex-1 min-h-[24px] ${colors.line}`}></div>
+                            )}
+                          </div>
+
+                          {/* Content card */}
+                          <div className={`flex-1 mb-3 p-3 rounded-lg border ${colors.bg} ${colors.border} ${entry.isCurrent ? 'ring-2 ring-blue-400' : ''}`}>
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              {/* Left: state + owner */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className={`font-semibold text-sm ${colors.text}`}>
+                                    {entry.to || '-'}
+                                  </span>
+                                  {entry.isCurrent && (
+                                    <span className="text-[10px] px-1.5 py-0.5 bg-blue-500 text-white rounded-full font-medium">
+                                      ACTUAL
+                                    </span>
+                                  )}
+                                </div>
+                                {entry.owner && (
+                                  <div className="flex items-center gap-1 mt-1 text-xs text-gray-600">
+                                    <User size={12} weight="bold" />
+                                    <span>{entry.owner}</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Right: duration */}
+                              <div className="text-right flex-shrink-0">
+                                <p className="font-bold text-sm text-gray-900">
+                                  {entry.durationFormatted}
+                                </p>
+                                <p className="text-[10px] text-gray-500">
+                                  {entry.durationMinutes} min
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Duration bar */}
+                            <div className="mt-2 w-full bg-white bg-opacity-60 rounded-full h-1.5">
+                              <div
+                                className={`h-1.5 rounded-full ${colors.dot} transition-all duration-500`}
+                                style={{ width: `${barWidth}%` }}
+                              ></div>
+                            </div>
+
+                            {/* Timestamps */}
+                            <div className="flex items-center gap-1 mt-1.5 text-[10px] text-gray-500">
+                              <span>{formatShortDate(entry.startTime)}</span>
+                              <ArrowRight size={10} />
+                              <span>
+                                {entry.isCurrent ? 'En curso' : formatShortDate(entry.endTime)}
                               </span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className={`text-xs px-2 py-1 rounded ${
-                                state.type === 'Empresa'
-                                  ? 'bg-primary-light text-primary'
-                                  : state.type === 'Cliente'
-                                  ? 'bg-warning-light text-warning'
-                                  : 'bg-gray-200 text-gray-600'
-                              }`}>
-                                {state.type}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-gray-700">
-                              {formatDate(state.startTime)}
-                            </td>
-                            <td className="px-4 py-3 text-gray-700">
-                              {state.isCurrent ? (
-                                <span className="text-primary font-medium">En curso</span>
-                              ) : (
-                                formatDate(state.endTime)
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <span className="font-semibold text-gray-900">
-                                {state.durationFormatted}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="text-gray-500 text-center py-4">

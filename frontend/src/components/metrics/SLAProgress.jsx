@@ -1,6 +1,12 @@
 import { Clock, CheckCircle } from 'phosphor-react';
 import Card from '../common/Card';
 
+const getColorByPercentage = (pct) => {
+  if (pct >= 90) return { text: 'text-success', bar: 'bg-success' };
+  if (pct >= 70) return { text: 'text-warning-dark', bar: 'bg-warning' };
+  return { text: 'text-danger', bar: 'bg-danger' };
+};
+
 const SLAProgress = ({
   title,
   icon: Icon = Clock,
@@ -8,6 +14,7 @@ const SLAProgress = ({
   met,
   breached
 }) => {
+  const colors = getColorByPercentage(percentage);
 
   return (
     <Card>
@@ -20,7 +27,7 @@ const SLAProgress = ({
       {/* Tasa de Cumplimiento */}
       <div className="mb-4">
         <div className="flex items-baseline">
-          <span className="text-4xl font-bold text-success">{percentage}%</span>
+          <span className={`text-4xl font-bold ${colors.text}`}>{percentage}%</span>
           <span className="ml-2 text-sm text-gray-500">Tasa de Cumplimiento</span>
         </div>
       </div>
@@ -29,7 +36,7 @@ const SLAProgress = ({
       <div className="mb-4">
         <div className="w-full bg-gray-200 rounded-full h-3">
           <div
-            className="bg-primary h-3 rounded-full transition-all duration-500"
+            className={`${colors.bar} h-3 rounded-full transition-all duration-500`}
             style={{ width: `${percentage}%` }}
           />
         </div>

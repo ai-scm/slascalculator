@@ -857,7 +857,8 @@ class SLAService {
 
   /**
    * Obtener historial detallado de estados de un ticket
-   * Muestra cada cambio de estado con duración en minutos laborales
+   * Mergea cambios de estado + cambios de owner cronologicamente.
+   * Cada entrada muestra: estado, responsable, duracion, tipo de periodo.
    * @param {string} ticketNumber - Número del ticket
    * @param {string} calendarType - Tipo de calendario ('laboral', '24-7', 'extended')
    */
@@ -865,7 +866,7 @@ class SLAService {
     try {
       // Obtener datos del ticket
       const ticketResult = await pool.query(`
-        SELECT 
+        SELECT
           t.id,
           t.number,
           t.title,
@@ -889,133 +890,108 @@ class SLAService {
 
       const ticket = ticketResult.rows[0];
 
-      // Obtener historial de cambios de estado (ordenado por fecha)
-      const historiesResult = await pool.query(`
-        SELECT 
-          h.created_at,
-          h.value_from,
-          h.value_to
-        FROM histories h
-        WHERE h.o_id = $1
-          AND h.history_attribute_id = 13
-        ORDER BY h.created_at ASC
-      `, [ticket.id]);
+      // Obtener historial de cambios de estado Y de owner en paralelo
+      const [stateHistResult, ownerHistResult] = await Promise.all([
+        pool.query(`
+          SELECT created_at, value_from, value_to
+          FROM histories
+          WHERE o_id = $1 AND history_attribute_id = $2
+          ORDER BY created_at ASC
+        `, [ticket.id, DATABASE.HISTORY_ATTRIBUTE_IDS.STATE_CHANGE]),
+        pool.query(`
+          SELECT created_at, value_from, value_to
+          FROM histories
+          WHERE o_id = $1 AND history_attribute_id = $2
+          ORDER BY created_at ASC
+        `, [ticket.id, DATABASE.HISTORY_ATTRIBUTE_IDS.OWNER_CHANGE])
+      ]);
 
-      const excludedStates = ['En Espera', 'Resuelto', 'Cerrado'];
-      const waitStates = ['En Espera'];
-      
+      const excludedStates = STATE_GROUPS.HIGHTECH_EXCLUDED;
+      const waitStates = STATE_GROUPS.CUSTOMER_WAITING;
+
+      // Mapear eventos
+      const stateEvents = stateHistResult.rows.map(h => ({
+        time: new Date(h.created_at).getTime(), type: 'state', from: h.value_from, to: h.value_to
+      }));
+      const ownerEvents = ownerHistResult.rows.map(h => ({
+        time: new Date(h.created_at).getTime(), type: 'owner', from: h.value_from, to: h.value_to
+      }));
+
+      // Determinar estado y owner inicial
+      let currentState = stateEvents.length > 0
+        ? (stateEvents[0].from || 'Nuevo')
+        : ticket.current_state;
+      let currentOwner = ownerEvents.length > 0
+        ? (ownerEvents[0].from || 'Sin asignar')
+        : ticket.owner_name;
+      if (currentOwner === '-' || !currentOwner) currentOwner = 'Sin asignar';
+
+      // Agrupar eventos por timestamp
+      const eventGroups = {};
+      for (const event of [...stateEvents, ...ownerEvents]) {
+        if (!eventGroups[event.time]) eventGroups[event.time] = [];
+        eventGroups[event.time].push(event);
+      }
+
+      const timestamps = Object.keys(eventGroups).map(Number).sort((a, b) => a - b);
+      let periodStart = ticket.created_at;
+      const endTime = ticket.close_at || this._getNowInDbFormat();
+
       let stateHistory = [];
       let totalHighTechMinutes = 0;
       let totalClientMinutes = 0;
 
-      const histories = historiesResult.rows;
-      
-      // Si no hay historial, todo el tiempo fue en un solo estado
-      if (histories.length === 0) {
-        const endTime = ticket.close_at || this._getNowInDbFormat();
-        const duration = workingHours.calculateWorkingMinutes(ticket.created_at, endTime, calendarType);
-        const isHighTech = !excludedStates.includes(ticket.current_state);
-        const isWaiting = waitStates.includes(ticket.current_state);
-        
-        if (isHighTech) {
-          totalHighTechMinutes += duration;
-        }
-        if (isWaiting) {
-          totalClientMinutes += duration;
-        }
+      for (const ts of timestamps) {
+        const eventTime = new Date(ts);
+        const duration = workingHours.calculateWorkingMinutes(periodStart, eventTime, calendarType);
+        const isWaiting = waitStates.includes(currentState);
+        const isExcluded = excludedStates.includes(currentState);
+        const isHighTech = !isExcluded;
+        const periodType = isWaiting ? 'Cliente' : (isExcluded ? 'Excluido' : 'Empresa');
+
+        if (isHighTech) totalHighTechMinutes += duration;
+        if (isWaiting) totalClientMinutes += duration;
 
         stateHistory.push({
           from: null,
-          to: ticket.current_state,
-          startTime: moment(ticket.created_at).utcOffset(-5).format('YYYY-MM-DD HH:mm:ss'),
-          endTime: moment(endTime).utcOffset(-5).format('YYYY-MM-DD HH:mm:ss'),
-          durationMinutes: duration,
+          to: currentState,
+          owner: currentOwner,
+          startTime: moment(periodStart).utcOffset(-5).format('YYYY-MM-DD HH:mm:ss'),
+          endTime: moment(eventTime).utcOffset(-5).format('YYYY-MM-DD HH:mm:ss'),
+          durationMinutes: Math.round(duration),
           durationFormatted: workingHours.formatMinutes(duration, calendarType),
-          type: isWaiting ? 'Cliente' : (isHighTech ? 'Empresa' : 'Excluido')
-        });
-      } else {
-        // Procesar cada período de estado
-        
-        // 1. CORRECCIÓN: Agregar periodo inicial (Creación -> Primer cambio)
-        const firstChange = histories[0];
-        const initialDuration = workingHours.calculateWorkingMinutes(ticket.created_at, firstChange.created_at, calendarType);
-        const initialState = firstChange.value_from || 'Nuevo'; // Asumir Nuevo si es null
-        const isInitialHighTech = !excludedStates.includes(initialState);
-        const isInitialWaiting = waitStates.includes(initialState);
-
-        if (isInitialHighTech) totalHighTechMinutes += initialDuration;
-        if (isInitialWaiting) totalClientMinutes += initialDuration;
-
-        stateHistory.push({
-          from: null,
-          to: initialState,
-          startTime: moment(ticket.created_at).utcOffset(-5).format('YYYY-MM-DD HH:mm:ss'),
-          endTime: moment(firstChange.created_at).utcOffset(-5).format('YYYY-MM-DD HH:mm:ss'),
-          durationMinutes: initialDuration,
-          durationFormatted: workingHours.formatMinutes(initialDuration, calendarType),
-          type: isInitialWaiting ? 'Cliente' : (isInitialHighTech ? 'Empresa' : 'Excluido')
+          type: periodType
         });
 
-        for (let i = 0; i < histories.length; i++) {
-          const change = histories[i];
-          const nextChange = histories[i + 1];
-          
-          // Periodo: desde change.created_at hasta el siguiente cambio (o fin)
-          const periodStart = change.created_at;
-          const periodEnd = nextChange ? nextChange.created_at : (ticket.close_at || this._getNowInDbFormat());
-
-          // El estado durante este período es el que se cambió a: change.value_to
-          const stateAtPeriod = change.value_to;
-          const isHighTech = !excludedStates.includes(stateAtPeriod);
-          const isWaiting = waitStates.includes(stateAtPeriod);
-          
-          const duration = workingHours.calculateWorkingMinutes(periodStart, periodEnd, calendarType);
-
-          if (isHighTech) {
-            totalHighTechMinutes += duration;
-          }
-          if (isWaiting) {
-            totalClientMinutes += duration;
-          }
-
-          stateHistory.push({
-            from: change.value_from,
-            to: stateAtPeriod,
-            startTime: moment(periodStart).utcOffset(-5).format('YYYY-MM-DD HH:mm:ss'),
-            endTime: moment(periodEnd).utcOffset(-5).format('YYYY-MM-DD HH:mm:ss'),
-            durationMinutes: duration,
-            durationFormatted: workingHours.formatMinutes(duration, calendarType),
-            type: isWaiting ? 'Cliente' : (isHighTech ? 'Empresa' : 'Excluido')
-          });
+        // Aplicar cambios de este timestamp
+        for (const event of eventGroups[ts]) {
+          if (event.type === 'state') currentState = event.to;
+          if (event.type === 'owner') currentOwner = event.to || 'Sin asignar';
         }
-        
-        // Si el ticket tiene un estado actual que no es el último del historial, agregar período final
-        const lastChange = histories[histories.length - 1];
-        if (lastChange.value_to !== ticket.current_state) {
-          const endTime = ticket.close_at || this._getNowInDbFormat();
-          const duration = workingHours.calculateWorkingMinutes(lastChange.created_at, endTime, calendarType);
-          const isHighTech = !excludedStates.includes(ticket.current_state);
-          const isWaiting = waitStates.includes(ticket.current_state);
-          
-          if (isHighTech) {
-            totalHighTechMinutes += duration;
-          }
-          if (isWaiting) {
-            totalClientMinutes += duration;
-          }
-
-          stateHistory.push({
-            from: lastChange.value_to,
-            to: ticket.current_state,
-            startTime: moment(lastChange.created_at).utcOffset(-5).format('YYYY-MM-DD HH:mm:ss'),
-            endTime: moment(endTime).utcOffset(-5).format('YYYY-MM-DD HH:mm:ss'),
-            durationMinutes: duration,
-            durationFormatted: workingHours.formatMinutes(duration, calendarType),
-            type: isWaiting ? 'Cliente' : (isHighTech ? 'Empresa' : 'Excluido'),
-            isCurrent: true
-          });
-        }
+        periodStart = eventTime;
       }
+
+      // Periodo final
+      const finalDuration = workingHours.calculateWorkingMinutes(periodStart, endTime, calendarType);
+      const isWaitingFinal = waitStates.includes(currentState);
+      const isExcludedFinal = excludedStates.includes(currentState);
+      const isHighTechFinal = !isExcludedFinal;
+
+      if (isHighTechFinal) totalHighTechMinutes += finalDuration;
+      if (isWaitingFinal) totalClientMinutes += finalDuration;
+
+      const isCurrent = !ticket.close_at;
+      stateHistory.push({
+        from: null,
+        to: currentState,
+        owner: currentOwner,
+        startTime: moment(periodStart).utcOffset(-5).format('YYYY-MM-DD HH:mm:ss'),
+        endTime: moment(endTime).utcOffset(-5).format('YYYY-MM-DD HH:mm:ss'),
+        durationMinutes: Math.round(finalDuration),
+        durationFormatted: workingHours.formatMinutes(finalDuration, calendarType),
+        type: isWaitingFinal ? 'Cliente' : (isExcludedFinal ? 'Excluido' : 'Empresa'),
+        isCurrent
+      });
 
       return {
         ticket: {

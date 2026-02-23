@@ -88,6 +88,50 @@ const FilterPanel = ({ onLoadMetrics, onExportExcel }) => {
     }
   };
 
+  // Presets de fechas rápidas
+  const datePresets = [
+    {
+      label: 'Hoy',
+      getRange: () => ({ startDate: today, endDate: today })
+    },
+    {
+      label: 'Última semana',
+      getRange: () => ({
+        startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        endDate: today
+      })
+    },
+    {
+      label: 'Últimos 30 días',
+      getRange: () => ({ startDate: thirtyDaysAgo, endDate: today })
+    },
+    {
+      label: 'Este mes',
+      getRange: () => {
+        const now = new Date();
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        return { startDate: firstDay, endDate: today };
+      }
+    },
+    {
+      label: 'Mes anterior',
+      getRange: () => {
+        const now = new Date();
+        const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
+        const lastDay = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
+        return { startDate: firstDay, endDate: lastDay };
+      }
+    }
+  ];
+
+  const [activePreset, setActivePreset] = useState('Últimos 30 días');
+
+  const handlePresetClick = (preset) => {
+    const range = preset.getRange();
+    setActivePreset(preset.label);
+    setLocalFilters(prev => ({ ...prev, ...range }));
+  };
+
   const handleClearFilters = () => {
     const clearedFilters = {
       ticketNumber: null,
@@ -99,6 +143,7 @@ const FilterPanel = ({ onLoadMetrics, onExportExcel }) => {
       type: null
     };
     setLocalFilters(clearedFilters);
+    setActivePreset('Últimos 30 días');
     dispatch({
       type: 'SET_FILTERS',
       payload: {
@@ -110,6 +155,23 @@ const FilterPanel = ({ onLoadMetrics, onExportExcel }) => {
 
   return (
     <div className="bg-white rounded-card shadow-card p-6">
+      {/* Presets de fechas */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        {datePresets.map((preset) => (
+          <button
+            key={preset.label}
+            onClick={() => handlePresetClick(preset)}
+            className={`px-3 py-1 text-xs font-medium rounded-full border transition-all duration-200 ${
+              activePreset === preset.label
+                ? 'bg-primary text-white border-primary'
+                : 'bg-white text-gray-600 border-gray-300 hover:border-primary hover:text-primary'
+            }`}
+          >
+            {preset.label}
+          </button>
+        ))}
+      </div>
+
       {/* Grid de filtros */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         {/* Búsqueda por Número de Ticket */}
@@ -127,7 +189,10 @@ const FilterPanel = ({ onLoadMetrics, onExportExcel }) => {
           type="date"
           label="Fecha Inicio"
           value={localFilters.startDate || ''}
-          onChange={(e) => handleFilterChange('startDate', e.target.value)}
+          onChange={(e) => {
+            handleFilterChange('startDate', e.target.value);
+            setActivePreset(null);
+          }}
         />
 
         {/* Fecha Fin */}
@@ -135,7 +200,10 @@ const FilterPanel = ({ onLoadMetrics, onExportExcel }) => {
           type="date"
           label="Fecha Fin"
           value={localFilters.endDate || ''}
-          onChange={(e) => handleFilterChange('endDate', e.target.value)}
+          onChange={(e) => {
+            handleFilterChange('endDate', e.target.value);
+            setActivePreset(null);
+          }}
         />
 
         {/* Proyecto */}

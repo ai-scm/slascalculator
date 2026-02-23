@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiService } from '../services/api';
 import {
@@ -6,7 +6,9 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  Target
+  Target,
+  Funnel,
+  ArrowClockwise
 } from 'phosphor-react';
 
 // Components
@@ -19,6 +21,8 @@ import TicketDistributionChart from '../components/charts/TicketDistributionChar
 import TicketsByStateChart from '../components/charts/TicketsByStateChart';
 import TicketsTable from '../components/tables/TicketsTable';
 import VPNConnectionModal from '../components/modals/VPNConnectionModal';
+import ToastContainer from '../components/common/Toast';
+import DashboardSkeleton from '../components/common/SkeletonLoader';
 
 const Dashboard = () => {
   const { state, dispatch } = useApp();
@@ -56,7 +60,7 @@ const Dashboard = () => {
     setVpnRetrying(false);
   };
 
-  const handleLoadMetrics = async (filtersOverride) => {
+  const handleLoadMetrics = useCallback(async (filtersOverride) => {
     console.log('🚀 [Dashboard] Iniciando carga de métricas...');
     console.log('🚀 [Dashboard] state.filters:', state.filters);
     console.log('🚀 [Dashboard] filtersOverride:', filtersOverride);
@@ -90,30 +94,32 @@ const Dashboard = () => {
       if (filters.ticketNumber) {
         if (tickets.length === 0) {
           console.warn(`⚠️ [Dashboard] No se encontró el ticket #${filters.ticketNumber}`);
-          dispatch({ type: 'SET_ERROR', payload: `No se encontró el ticket #${filters.ticketNumber}` });
+          dispatch({ type: 'ADD_TOAST', payload: { type: 'warning', message: `No se encontró el ticket #${filters.ticketNumber}` } });
         } else {
           console.log(`✅ [Dashboard] Ticket #${filters.ticketNumber} encontrado`);
-          // Limpiar error anterior si existía
-          dispatch({ type: 'SET_ERROR', payload: null });
+          dispatch({ type: 'ADD_TOAST', payload: { type: 'success', message: `Ticket #${filters.ticketNumber} encontrado` } });
         }
       } else {
-        // Limpiar error si no hay búsqueda específica
-        dispatch({ type: 'SET_ERROR', payload: null });
+        dispatch({ type: 'ADD_TOAST', payload: { type: 'success', message: `${tickets?.length || 0} tickets cargados` } });
       }
 
+      dispatch({ type: 'SET_ERROR', payload: null });
       dispatch({ type: 'SET_METRICS', payload: metrics });
       dispatch({ type: 'SET_TICKETS', payload: tickets });
     } catch (error) {
       console.error('❌ [Dashboard] Error cargando métricas:', error);
+      dispatch({ type: 'ADD_TOAST', payload: { type: 'error', message: 'Error al cargar métricas' } });
       dispatch({ type: 'SET_ERROR', payload: error.toString() });
     } finally {
       setLoading(false);
       dispatch({ type: 'SET_LOADING', payload: false });
     }
-  };
+  }, [state.filters, state.selectedCalendarType, dispatch]);
 
-  const handleExportExcel = async () => {
+  const handleExportExcel = useCallback(async () => {
     try {
+      dispatch({ type: 'ADD_TOAST', payload: { type: 'info', message: 'Generando reporte Excel...' } });
+
       const filters = {
         ...state.filters,
         calendarType: state.selectedCalendarType
@@ -124,11 +130,35 @@ const Dashboard = () => {
 
       const blob = await apiService.generateReport(filters, charts);
       apiService.downloadBlob(blob, `SLA_Report_${Date.now()}.xlsx`);
+
+      dispatch({ type: 'ADD_TOAST', payload: { type: 'success', message: 'Reporte Excel descargado' } });
     } catch (error) {
       console.error('Error exportando Excel:', error);
-      alert('Error al generar el reporte');
+      dispatch({ type: 'ADD_TOAST', payload: { type: 'error', message: 'Error al generar el reporte' } });
     }
-  };
+  }, [state.filters, state.selectedCalendarType, dispatch]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ctrl+Enter → Cargar métricas
+      if (e.ctrlKey && e.key === 'Enter') {
+        e.preventDefault();
+        handleLoadMetrics();
+      }
+      // Ctrl+E → Exportar Excel
+      if (e.ctrlKey && e.key === 'e') {
+        e.preventDefault();
+        if (state.currentMetrics) {
+          handleExportExcel();
+        }
+      }
+      // Escape → cerrado de modales se maneja en cada modal
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleLoadMetrics, handleExportExcel, state.currentMetrics]);
 
   const metrics = state.currentMetrics;
 
@@ -179,17 +209,26 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-100">
+      {/* Toast Notifications */}
+      <ToastContainer />
+
       {/* Header */}
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center gap-4">
           <img src="/logo.png" alt="Blend" className="h-10" />
-          <div>
+          <div className="flex-1">
             <h1 className="text-2xl font-bold text-gray-900">
               Dashboard de SLA
             </h1>
             <p className="text-gray-500 text-sm">
               Sistema de reportes personalizados para Zammad
             </p>
+          </div>
+          <div className="hidden sm:flex items-center gap-3 text-xs text-gray-400">
+            <span className="px-2 py-1 bg-gray-100 rounded font-mono">Ctrl+Enter</span>
+            <span>Cargar</span>
+            <span className="px-2 py-1 bg-gray-100 rounded font-mono">Ctrl+E</span>
+            <span>Exportar</span>
           </div>
         </div>
       </header>
@@ -206,25 +245,14 @@ const Dashboard = () => {
             onExportExcel={handleExportExcel}
           />
 
-          {/* Error Message */}
-          {state.error && (
-            <div className="bg-danger-light border border-danger text-danger-dark px-4 py-3 rounded-button">
-              <strong>Error:</strong> {state.error}
-            </div>
-          )}
-
-          {/* Loading State */}
-          {loading && (
-            <div className="flex justify-center items-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            </div>
-          )}
+          {/* Loading State - Skeleton */}
+          {loading && <DashboardSkeleton />}
 
           {/* Métricas - Solo mostrar si hay datos */}
           {metrics && !loading && (
             <>
               {/* Cards de Métricas */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in-up">
                 <MetricCard
                   title="Total de Tickets"
                   value={metrics.totalTickets || 0}
@@ -249,7 +277,7 @@ const Dashboard = () => {
               </div>
 
               {/* Barras de Progreso SLA */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in-up animation-delay-100">
                 <SLAProgress
                   title="Tiempo de Primera Respuesta"
                   icon={Clock}
@@ -267,28 +295,46 @@ const Dashboard = () => {
               </div>
 
               {/* Gráficas */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in-up animation-delay-200">
                 <SLATrendChart data={prepareTrendData()} />
                 <TicketDistributionChart data={prepareDistributionData()} />
               </div>
 
               {/* Gráfica de Tickets por Estado */}
-              <TicketsByStateChart tickets={state.tickets} />
+              <div className="animate-fade-in-up animation-delay-300">
+                <TicketsByStateChart tickets={state.tickets} />
+              </div>
 
               {/* Tabla de Tickets */}
-              <TicketsTable tickets={state.tickets} />
+              <div className="animate-fade-in-up animation-delay-400">
+                <TicketsTable tickets={state.tickets} />
+              </div>
             </>
           )}
 
           {/* Empty State */}
           {!metrics && !loading && (
-            <div className="bg-white rounded-card shadow-card p-12 text-center">
-              <Ticket className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <div className="bg-white rounded-card shadow-card p-12 text-center animate-fade-in-up">
+              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Ticket className="w-10 h-10 text-gray-400" weight="duotone" />
+              </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
                 No hay datos para mostrar
               </h3>
-              <p className="text-gray-500 mb-6">
-                Selecciona los filtros y haz clic en "Cargar Métricas" para ver los reportes
+              <p className="text-gray-500 mb-6 max-w-md mx-auto">
+                Configura los filtros de fecha, proyecto o agente y carga las métricas para visualizar los reportes de SLA.
+              </p>
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  onClick={() => handleLoadMetrics()}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-button font-medium hover:bg-primary-dark transition-all duration-200"
+                >
+                  <Funnel className="w-5 h-5" />
+                  Cargar Métricas
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 mt-4">
+                Atajo: <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">Ctrl+Enter</span> para cargar
               </p>
             </div>
           )}
