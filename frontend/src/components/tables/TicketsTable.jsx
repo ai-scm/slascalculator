@@ -147,6 +147,14 @@ const TicketsTable = ({ tickets = [] }) => {
               <th className="min-w-[200px]">Título</th>
               <th
                 className="cursor-pointer hover:bg-gray-100"
+                onClick={() => handleSort('type')}
+              >
+                <div className="flex items-center gap-1">
+                  Tipo <SortIcon field="type" />
+                </div>
+              </th>
+              <th
+                className="cursor-pointer hover:bg-gray-100"
                 onClick={() => handleSort('state_name')}
               >
                 <div className="flex items-center gap-1">
@@ -180,6 +188,9 @@ const TicketsTable = ({ tickets = [] }) => {
                 </td>
                 <td className="max-w-xs truncate" title={ticket.title}>
                   {ticket.title || '-'}
+                </td>
+                <td className="max-w-xs truncate" title={ticket.type}>
+                  {ticket.type || '-'}
                 </td>
                 <td>
                   <span className={`badge ${
