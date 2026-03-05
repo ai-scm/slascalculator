@@ -47,13 +47,8 @@ router.get('/agents', async (req, res) => {
 // Obtener métricas de SLA
 router.post('/metrics', filtersValidation, validate, async (req, res) => {
   try {
-    console.log('\n📊 [BACKEND /api/metrics] Petición recibida');
-    console.log('📊 [BACKEND] Headers:', req.headers);
-    console.log('📊 [BACKEND] Body:', req.body);
     const filters = req.body;
-    console.log('📊 [BACKEND] Llamando a slaService.getSLAMetrics con filtros:', filters);
     const metrics = await slaService.getSLAMetrics(filters);
-    console.log('📊 [BACKEND] Métricas obtenidas:', metrics);
     res.json({ success: true, data: metrics });
   } catch (error) {
     console.error('❌ [BACKEND /api/metrics] Error:', error);
@@ -64,12 +59,8 @@ router.post('/metrics', filtersValidation, validate, async (req, res) => {
 // Obtener tickets con SLA
 router.post('/tickets', filtersValidation, validate, async (req, res) => {
   try {
-    console.log('\n🎫 [BACKEND /api/tickets] Petición recibida');
-    console.log('🎫 [BACKEND] Body:', req.body);
     const filters = req.body;
-    console.log('🎫 [BACKEND] Llamando a slaService.getTicketsWithSLA con filtros:', filters);
     const tickets = await slaService.getTicketsWithSLA(filters);
-    console.log('🎫 [BACKEND] Tickets obtenidos:', tickets?.length, 'tickets');
     res.json({ success: true, data: tickets });
   } catch (error) {
     console.error('❌ [BACKEND /api/tickets] Error:', error);

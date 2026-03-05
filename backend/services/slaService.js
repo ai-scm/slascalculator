@@ -4,6 +4,28 @@ const workingHours = require('./workingHoursService');
 const logger = require('../utils/logger');
 const { DATABASE, STATE_GROUPS, EMPRESA_NAMES } = require('../config/constants');
 
+// Cache TTL para getTicketsWithSLA (5 minutos)
+const _cache = new Map();
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
+function _cacheKey(filters) {
+  return JSON.stringify(Object.keys(filters).sort().reduce((acc, k) => {
+    if (filters[k] !== undefined && filters[k] !== null && filters[k] !== '') acc[k] = filters[k];
+    return acc;
+  }, {}));
+}
+
+function _cacheGet(filters) {
+  const entry = _cache.get(_cacheKey(filters));
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) { _cache.delete(_cacheKey(filters)); return null; }
+  return entry.data;
+}
+
+function _cacheSet(filters, data) {
+  _cache.set(_cacheKey(filters), { data, expiresAt: Date.now() + CACHE_TTL_MS });
+}
+
 // Alias local para legibilidad — definido en constants.js (DATABASE.DB_UTC_OFFSET)
 const DB_UTC_OFFSET = DATABASE.DB_UTC_OFFSET;
 
@@ -262,6 +284,9 @@ class SLAService {
 
   // Obtener todos los tickets con información completa desde tabla tickets
   async getTicketsWithSLA(filters = {}) {
+    const cached = _cacheGet(filters);
+    if (cached) { logger.debug('[SLAService] getTicketsWithSLA (cache hit)'); return cached; }
+
     const { startDate, endDate, organizationId, ownerId, state, ticketNumber, calendarType = 'laboral', type } = filters;
     logger.debug('[SLAService] getTicketsWithSLA', { startDate, endDate, organizationId, ownerId, state, ticketNumber, calendarType, type });
 
@@ -408,6 +433,7 @@ class SLAService {
         })
       );
       
+      _cacheSet(filters, processedTickets);
       return processedTickets;
     } catch (error) {
       logger.error('Error en getTicketsWithSLA', error, { filters });
