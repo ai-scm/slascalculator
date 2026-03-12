@@ -473,8 +473,20 @@ class SLAService {
       );
 
       // Filtrar por equipo si se especificó teamId
+      // Se busca directamente el equipo en DynamoDB para obtener sus agent_ids,
+      // ya que agentTeamMap solo mapea cada agente a UN equipo (el último procesado)
+      // y los agentes pertenecen a múltiples equipos (área + gerencia)
       if (teamId) {
-        return processedTickets.filter(t => t.team_id === teamId);
+        try {
+          const team = await dynamoService.getTeam(teamId);
+          if (team && team.agent_ids && team.agent_ids.length > 0) {
+            const agentIdSet = new Set(team.agent_ids.map(id => Number(id)));
+            return processedTickets.filter(t => agentIdSet.has(Number(t.owner_id)));
+          }
+        } catch (e) {
+          logger.error('[SLAService] Error obteniendo equipo para filtrar', e);
+        }
+        return [];
       }
 
       return processedTickets;
