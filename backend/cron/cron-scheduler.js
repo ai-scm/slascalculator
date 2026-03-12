@@ -7,6 +7,12 @@ const logger = require('../utils/logger');
  * Se ejecuta al iniciar el servidor
  */
 function initializeCronJobs() {
+  // CRON desactivado temporalmente para evitar acumulación de archivos locales
+  // (AWS_S3_BUCKET no configurado → los Parquet llenan el disco)
+  // Para reactivar: descomentar el bloque cron.schedule de abajo
+  console.log('CRON jobs desactivados (exportación Parquet pausada).');
+
+  /*
   console.log('\n🔧 Inicializando CRON jobs...\n');
 
   // CRON: Exportar SLA cada 30 minutos
@@ -24,6 +30,7 @@ function initializeCronJobs() {
 
   console.log('✓ CRON programado: Exportacion SLA cada 30 minutos');
   console.log('✓ Zona horaria: America/Bogota\n');
+  */
 }
 
 module.exports = { initializeCronJobs };
