@@ -314,6 +314,121 @@ node -e "require('./cron/sla-exporter-cron').exportSLAToQuickSight().then(consol
 #    Tables: tickets, summary, by_agent, etc.
 ```
 
+## DynamoDB — Configuración de proyectos y equipos
+
+La aplicación usa DynamoDB para almacenar la configuración de proyectos y equipos. Esto permite modificar calendarios SLA, reglas de SLA y mapeos de agentes sin tocar el código.
+
+### Tablas
+
+| Tabla | Descripción |
+|---|---|
+| `sla-reporter-projects` | Proyectos/clientes con su calendario SLA y reglas de cumplimiento |
+| `sla-reporter-teams` | Equipos con los IDs de agentes que los componen |
+
+### Autenticación AWS
+
+- **En EC2:** se usa el IAM Instance Profile (`nuv-prod-ai-servicecenterEC2Role`). No se necesitan credenciales en el `.env`.
+- **En local:** se requieren credenciales válidas en `~/.aws/credentials` o variables de entorno `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`. Las credenciales temporales de SSO expiran cada pocas horas.
+
+### Estructura de un proyecto en DynamoDB
+
+```json
+{
+  "id": "1",
+  "empresa": "Policía Nacional",
+  "calendar_type": "24x7",
+  "active": true,
+  "sla_targets": {
+    "incidente": {
+      "critico":  { "firstResponse": 1,  "resolution": 28  },
+      "alto":     { "firstResponse": 2,  "resolution": 44  },
+      "medio":    { "firstResponse": 4,  "resolution": 56  },
+      "bajo":     { "firstResponse": 8,  "resolution": 80  },
+      "planeado": { "firstResponse": 8,  "resolution": 176 }
+    },
+    "requerimiento": {
+      "critico":  { "firstResponse": 1,  "resolution": 28  },
+      "alto":     { "firstResponse": 2,  "resolution": 44  },
+      "medio":    { "firstResponse": 4,  "resolution": 56  },
+      "bajo":     { "firstResponse": 8,  "resolution": 80  },
+      "planeado": { "firstResponse": 8,  "resolution": 176 }
+    },
+    "default": { "firstResponse": 4, "resolution": 56 }
+  }
+}
+```
+
+> Los tiempos en `sla_targets` están en **horas laborales**. El sistema los multiplica x60 internamente para convertirlos a minutos.
+
+### Cómo funciona por ticket
+
+Cuando se procesa un ticket, el sistema:
+1. Busca el proyecto del ticket en DynamoDB (`projectsMap[bld_cliente_padre]`)
+2. Usa `calendar_type` del proyecto para calcular las horas laborales (no el selector global del frontend)
+3. Usa `sla_targets` del proyecto para evaluar el cumplimiento SLA
+
+Si el proyecto no existe en DynamoDB, hace fallback a los valores hardcodeados en `slaService.js`.
+
+### Cargar / actualizar proyectos
+
+Desde la EC2 (tiene permisos automáticos vía Instance Profile):
+
+```bash
+cd /home/ec2-user/slascalculator/backend
+node scripts/seed-dynamo.js
+```
+
+Esto crea o sobreescribe los 26 proyectos en la tabla `sla-reporter-projects`.
+
+### Modificar un proyecto específico
+
+Para cambiar el calendario o las reglas SLA de un proyecto sin re-seedear todo, edita directamente en la consola de AWS:
+
+1. Ir a **DynamoDB → Tables → sla-reporter-projects → Explore items**
+2. Buscar el item por `id` (ej. `"1"` para Policía Nacional)
+3. Editar los campos `calendar_type` o `sla_targets` y guardar
+
+O via AWS CLI desde la EC2:
+
+```bash
+aws dynamodb update-item \
+  --table-name sla-reporter-projects \
+  --key '{"id": {"S": "1"}}' \
+  --update-expression "SET calendar_type = :ct" \
+  --expression-attribute-values '{":ct": {"S": "24x7"}}' \
+  --region us-east-1
+```
+
+### Calendarios disponibles por proyecto
+
+| `calendar_type` | Horario | Días | Festivos |
+|---|---|---|---|
+| `laboral` | 8:00–17:00 | Lun–Vie | Excluidos |
+| `continuo` | 8:00–18:00 | Lun–Vie | No excluidos |
+| `24x7` | 00:00–24:00 | Todos | No excluidos |
+
+**Configuración actual:**
+
+| Proyecto | Calendario |
+|---|---|
+| Policía Nacional | `24x7` |
+| Todos los demás | `laboral` |
+
+### Equipos (teams)
+
+Los equipos se cargan con el script `seed-teams-from-csv.js` a partir de la Matriz de Comunicaciones (CSV con columnas GERENCIA, AREA, EMAIL, STATUS).
+
+```bash
+cd /home/ec2-user/slascalculator/backend
+node scripts/seed-teams-from-csv.js ruta/al/archivo.csv
+```
+
+Carga automáticamente equipos de tipo `gerencia` (ID: `gerencia-{slug}`) y `area` (ID: `area-{slug}`), excluyendo ex-empleados.
+
+Un agente puede pertenecer a múltiples equipos (su área y su gerencia). El filtro por equipo en el frontend usa los `agent_ids` del equipo directamente para manejar esto correctamente.
+
+---
+
 ## Variables de entorno
 
 | Variable | Descripción | Ejemplo |
@@ -331,6 +446,8 @@ node -e "require('./cron/sla-exporter-cron').exportSLAToQuickSight().then(consol
 | `AWS_S3_PREFIX` | Prefijo S3 de los datos | `sla-data` |
 | `AWS_REGION` | Región AWS | `us-east-1` |
 | `AWS_GLUE_CRAWLER_NAME` | Nombre del Glue Crawler | `zammad-sla-reporter-crawler-latest-prod` |
+| `DYNAMO_PROJECTS_TABLE` | Tabla DynamoDB de proyectos | `sla-reporter-projects` |
+| `DYNAMO_TEAMS_TABLE` | Tabla DynamoDB de equipos | `sla-reporter-teams` |
 
 ## Repositorio
 
