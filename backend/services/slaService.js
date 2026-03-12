@@ -431,18 +431,21 @@ class SLAService {
         result.rows.map(async (ticket) => {
           const ticketHistories = historiesMap[ticket.id] || [];
 
-          // Calcular Tiempo Hightech: excluir Espera, Resuelto, Cerrado
-          const highTechMinutes = await this.calculateHighTechTime(ticket.id, ticket.created_at, ticket.close_at || this._getNowInDbFormat(), calendarType, ticketHistories, ticket.state_name);
-
-          // Calcular Tiempo Cliente: solo cuando está en "Espera"
-          const clientMinutes = await this.calculateClientWaitingTime(ticket.id, calendarType, ticketHistories, ticket.created_at);
-
-          // Calcular Tiempo Primera Respuesta
-          const firstResponseMinutes = await this.calculateFirstResponseTime(ticket.id, ticket.created_at, calendarType, ticketHistories);
-
-          // EVALUAR SLA — usar targets del proyecto si existen, si no usar global
+          // EVALUAR SLA — usar config del proyecto si existe, si no usar global
           const projectConfig = projectsMap[ticket.bld_cliente_padre?.toString()];
           const slaTargets = this.getSLATargets(ticket.type, ticket.priority_name, projectConfig);
+
+          // Usar calendar_type del proyecto si está definido, si no el global del filtro
+          const ticketCalendarType = projectConfig?.calendar_type || calendarType;
+
+          // Calcular Tiempo Hightech: excluir Espera, Resuelto, Cerrado
+          const highTechMinutes = await this.calculateHighTechTime(ticket.id, ticket.created_at, ticket.close_at || this._getNowInDbFormat(), ticketCalendarType, ticketHistories, ticket.state_name);
+
+          // Calcular Tiempo Cliente: solo cuando está en "Espera"
+          const clientMinutes = await this.calculateClientWaitingTime(ticket.id, ticketCalendarType, ticketHistories, ticket.created_at);
+
+          // Calcular Tiempo Primera Respuesta
+          const firstResponseMinutes = await this.calculateFirstResponseTime(ticket.id, ticket.created_at, ticketCalendarType, ticketHistories);
 
           const firstResponseMet = firstResponseMinutes <= slaTargets.firstResponse;
           const resolutionMet = highTechMinutes <= slaTargets.resolution;
@@ -456,8 +459,8 @@ class SLAService {
             hightech_time_minutes: highTechMinutes,
             client_time_minutes: clientMinutes,
             first_response_time_minutes: firstResponseMinutes,
-            hightech_time_formatted: workingHours.formatMinutes(highTechMinutes, calendarType),
-            client_time_formatted: workingHours.formatMinutes(clientMinutes, calendarType),
+            hightech_time_formatted: workingHours.formatMinutes(highTechMinutes, ticketCalendarType),
+            client_time_formatted: workingHours.formatMinutes(clientMinutes, ticketCalendarType),
 
             // Resultados de SLA
             sla_config: slaTargets,
