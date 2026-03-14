@@ -952,17 +952,16 @@ class SLAService {
       // Si la consulta retorna datos, usarlos. Si no, devolver fallback
       if (result.rows && result.rows.length > 0) {
         const states = result.rows.map(row => row.name);
-        logger.info(`[SLAService] getTicketStates - Se cargaron ${states.length} estados de BD:`, states);
+        logger.warn(`[SLAService] getTicketStates - Se cargaron ${states.length} estados de BD`);
         return states;
-      } else {
-        logger.warn('[SLAService] getTicketStates - No se encontraron estados activos en BD, usando fallback');
-        return ['Nuevo', 'Abierto', 'En Progreso', 'En Espera', 'Resuelto', 'Cerrado'];
       }
+
+      logger.warn('[SLAService] getTicketStates - No se encontraron estados activos en BD, usando fallback');
+      return ['Diagnostico', 'En Espera', 'Clasificacion', 'Cerrado', 'Cancelado', 'En progreso', 'Recepcion', 'Resuelto'];
     } catch (error) {
-      logger.error('[SLAService] getTicketStates - Error en consulta SQL:', error.message);
-      // Fallback en caso de error
+      logger.error(`[SLAService] getTicketStates - Error en consulta SQL: ${error.message}`);
       logger.warn('[SLAService] getTicketStates - Usando fallback por error');
-      return ['Nuevo', 'Abierto', 'En Progreso', 'En Espera', 'Resuelto', 'Cerrado'];
+      return ['Diagnostico', 'En Espera', 'Clasificacion', 'Cerrado', 'Cancelado', 'En progreso', 'Recepcion', 'Resuelto'];
     }
   }
 

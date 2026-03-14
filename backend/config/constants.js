@@ -17,12 +17,14 @@ const DATABASE = {
 
 // Ticket State Names (as stored in database)
 const TICKET_STATES = {
+  DIAGNOSTICO: 'Diagnostico',
+  CLASIFICACION: 'Clasificacion',
+  RECEPCION: 'Recepcion',
   WAITING: 'En Espera',
+  IN_PROGRESS: 'En progreso',
   RESOLVED: 'Resuelto',
   CLOSED: 'Cerrado',
-  NEW: 'Nuevo',
-  OPEN: 'Abierto',
-  IN_PROGRESS: 'En Progreso'
+  CANCELED: 'Cancelado'
 };
 
 // State groups for time calculations
@@ -31,10 +33,10 @@ const STATE_GROUPS = {
   CUSTOMER_WAITING: ['En Espera'],
 
   // States excluded from HighTech time calculation (customer or finished states)
-  HIGHTECH_EXCLUDED: ['En Espera', 'Resuelto', 'Cerrado'],
+  HIGHTECH_EXCLUDED: ['En Espera', 'Resuelto', 'Cerrado', 'Cancelado'],
 
   // Final states (ticket is finished)
-  FINAL_STATES: ['Resuelto', 'Cerrado']
+  FINAL_STATES: ['Resuelto', 'Cerrado', 'Cancelado']
 };
 
 // Ticket Types
