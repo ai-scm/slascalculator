@@ -948,10 +948,18 @@ class SLAService {
         WHERE active = true
         ORDER BY id ASC
       `);
-      return result.rows.map(row => row.name);
+      
+      // Si la consulta retorna datos, usarlos. Si no, devolver fallback
+      if (result.rows && result.rows.length > 0) {
+        return result.rows.map(row => row.name);
+      } else {
+        logger.warn('[SLAService] No se encontraron estados activos en BD, usando estados por defecto');
+        return ['Nuevo', 'Abierto', 'En Progreso', 'En Espera', 'Resuelto', 'Cerrado'];
+      }
     } catch (error) {
       logger.error('Error en getTicketStates', error);
-      return [];
+      // Fallback en caso de error
+      return ['Nuevo', 'Abierto', 'En Progreso', 'En Espera', 'Resuelto', 'Cerrado'];
     }
   }
 
