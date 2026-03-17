@@ -32,6 +32,12 @@ const Dashboard = () => {
   const [ticketStateFilter, setTicketStateFilter] = useState(null);
   const drilldownRef = useRef(null);
   const [ticketHistory, setTicketHistory] = useState(null);
+
+  useEffect(() => {
+    if (ticketStateFilter && drilldownRef.current) {
+      drilldownRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [ticketStateFilter]);
   const autoLoadDoneRef = useRef(false);
 
   // Cargar datos iniciales (una sola vez)
@@ -463,7 +469,6 @@ const Dashboard = () => {
                       data={prepareDistributionData()}
                       onStateClick={(stateName) => {
                         setTicketStateFilter(prev => prev === stateName ? null : stateName);
-                        setTimeout(() => drilldownRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
                       }}
                     />
                   </div>
