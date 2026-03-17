@@ -128,7 +128,10 @@ const FilterPanel = ({ onLoadMetrics, onExportExcel }) => {
   const handlePresetClick = (preset) => {
     const range = preset.getRange();
     setActivePreset(preset.label);
-    setLocalFilters(prev => ({ ...prev, ...range }));
+    const newFilters = { ...localFilters, ...range };
+    setLocalFilters(newFilters);
+    dispatch({ type: 'SET_FILTERS', payload: newFilters });
+    if (onLoadMetrics) onLoadMetrics(newFilters);
   };
 
   const handleClearFilters = () => {
