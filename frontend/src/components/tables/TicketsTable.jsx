@@ -193,15 +193,20 @@ const TicketsTable = ({ tickets = [] }) => {
                   {ticket.type || '-'}
                 </td>
                 <td>
-                  <span className={`badge ${
-                    ticket.state_name?.toLowerCase().includes('cerrado')
-                      ? 'badge-success'
-                      : ticket.state_name?.toLowerCase().includes('abierto')
-                      ? 'badge-danger'
-                      : 'badge-warning'
-                  }`}>
-                    {ticket.state_name || '-'}
-                  </span>
+                  {ticket.state_name?.toLowerCase().includes('abierto') ? (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                      {ticket.state_name}
+                    </span>
+                  ) : (
+                    <span className={`badge ${
+                      ticket.state_name?.toLowerCase().includes('cerrado')
+                        ? 'badge-success'
+                        : 'badge-warning'
+                    }`}>
+                      {ticket.state_name || '-'}
+                    </span>
+                  )}
                 </td>
                 <td className="max-w-xs truncate" title={ticket.organization_name}>
                   {ticket.organization_name || '-'}
