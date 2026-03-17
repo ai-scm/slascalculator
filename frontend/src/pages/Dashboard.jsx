@@ -4,7 +4,7 @@ import { apiService } from '../services/api';
 import {
   Ticket,
   CheckCircle,
-  Spinner,
+  Gear,
   Clock,
   Target,
   Funnel,
@@ -29,6 +29,8 @@ const Dashboard = () => {
   const [showVPNModal, setShowVPNModal] = useState(false);
   const [vpnRetrying, setVpnRetrying] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+  const [ticketStateFilter, setTicketStateFilter] = useState(null);
+  const drilldownRef = useRef(null);
   const [ticketHistory, setTicketHistory] = useState(null);
   const autoLoadDoneRef = useRef(false);
 
@@ -203,6 +205,12 @@ const Dashboard = () => {
 
   const metrics = state.currentMetrics;
 
+  const normalizeStr = (v) => (v || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+
+  const drilldownTickets = ticketStateFilter
+    ? (state.tickets || []).filter(t => normalizeStr(t.state_name) === normalizeStr(ticketStateFilter))
+    : [];
+
   // Preparar datos para gráfica de tendencia SLA (todos los días del rango o ticket individual)
   const prepareTrendData = () => {
     if (!state.tickets || state.tickets.length === 0) return null;
@@ -366,7 +374,7 @@ const Dashboard = () => {
               {/* Tab Navigation */}
               <div className="flex gap-2 border-b border-gray-200">
                 <button
-                  onClick={() => setActiveTab('overview')}
+                  onClick={() => { setActiveTab('overview'); setTicketStateFilter(null); }}
                   className={`px-4 py-3 font-medium transition-colors ${
                     activeTab === 'overview'
                       ? 'border-b-2 border-primary text-primary'
@@ -386,7 +394,7 @@ const Dashboard = () => {
                   Análisis
                 </button>
                 <button
-                  onClick={() => setActiveTab('tickets')}
+                  onClick={() => { setActiveTab('tickets'); setTicketStateFilter(null); }}
                   className={`px-4 py-3 font-medium transition-colors ${
                     activeTab === 'tickets'
                       ? 'border-b-2 border-primary text-primary'
@@ -419,9 +427,9 @@ const Dashboard = () => {
                     <MetricCard
                       title="Tickets Abiertos"
                       value={metrics.openTickets || 0}
-                      icon={Spinner}
-                      iconBgColor="bg-blue-100"
-                      iconColor="text-blue-500"
+                      icon={Gear}
+                      iconBgColor="bg-yellow-100"
+                      iconColor="text-yellow-500"
                     />
                   </div>
 
@@ -451,8 +459,25 @@ const Dashboard = () => {
                   {/* Gráficas Tendencia + Estado */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in-up">
                     <SLATrendChart data={prepareTrendData()} />
-                    <TicketDistributionChart data={prepareDistributionData()} />
+                    <TicketDistributionChart
+                      data={prepareDistributionData()}
+                      onStateClick={(stateName) => {
+                        setTicketStateFilter(prev => prev === stateName ? null : stateName);
+                        setTimeout(() => drilldownRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+                      }}
+                    />
                   </div>
+
+                  {/* Tabla drill-down al hacer clic en la dona */}
+                  {ticketStateFilter && (
+                    <div ref={drilldownRef} className="animate-fade-in-up">
+                      <div className="flex items-center gap-2 mb-2 px-1 text-sm text-gray-600">
+                        <span>Mostrando tickets en estado: <strong>{ticketStateFilter}</strong> ({drilldownTickets.length})</span>
+                        <button onClick={() => setTicketStateFilter(null)} className="ml-2 text-gray-400 hover:text-gray-700 font-bold">✕ Limpiar</button>
+                      </div>
+                      <TicketsTable tickets={drilldownTickets} />
+                    </div>
+                  )}
                 </>
               )}
 
@@ -466,7 +491,7 @@ const Dashboard = () => {
 
                   {/* Tabla de Tickets */}
                   <div className="animate-fade-in-up">
-                    <TicketsTable tickets={state.tickets} />
+                    <TicketsTable tickets={state.tickets} filterState={ticketStateFilter} onClearFilter={() => setTicketStateFilter(null)} />
                   </div>
                 </>
               )}
