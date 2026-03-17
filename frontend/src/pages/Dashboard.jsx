@@ -4,7 +4,7 @@ import { apiService } from '../services/api';
 import {
   Ticket,
   CheckCircle,
-  XCircle,
+  Spinner,
   Clock,
   Target,
   Funnel,
@@ -419,9 +419,9 @@ const Dashboard = () => {
                     <MetricCard
                       title="Tickets Abiertos"
                       value={metrics.openTickets || 0}
-                      icon={XCircle}
-                      iconBgColor="bg-danger-light"
-                      iconColor="text-danger"
+                      icon={Spinner}
+                      iconBgColor="bg-blue-100"
+                      iconColor="text-blue-500"
                     />
                   </div>
 
