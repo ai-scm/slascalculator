@@ -361,7 +361,7 @@ class SLAService {
     
     if (endDate) {
       query += ` AND t.created_at <= $${paramCount}`;
-      params.push(endDate);
+      params.push(`${endDate} 23:59:59`);
       paramCount++;
     }
     
