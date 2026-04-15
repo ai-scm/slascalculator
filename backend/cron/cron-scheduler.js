@@ -15,7 +15,7 @@ function initializeCronJobs() {
     console.error('❌ Error en exportación inicial:', err.message);
   });
   
-  cron.schedule('*/30 * * * *', async () => {
+  cron.schedule('*/10 * * * *', async () => {
     console.log('⏰ CRON TRIGGER: Hora de exportar SLA');
     try {
       await exportSLAToQuickSight();
