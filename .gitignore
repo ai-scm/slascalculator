@@ -28,6 +28,7 @@ logs/
 frontend/dist/
 dist/
 build/
+exports/
 
 # Archivos generados
 *.xlsx

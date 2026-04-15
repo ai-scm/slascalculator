@@ -8,6 +8,13 @@ const logger = require('../utils/logger');
  */
 function initializeCronJobs() {
   console.log('\n🔧 Inicializando CRON jobs...\n');
+  
+  // Ejecutar inmediatamente al iniciar
+  console.log('⏰ Ejecutando exportación inicial...');
+  exportSLAToQuickSight().catch(err => {
+    console.error('❌ Error en exportación inicial:', err.message);
+  });
+  
   cron.schedule('*/30 * * * *', async () => {
     console.log('⏰ CRON TRIGGER: Hora de exportar SLA');
     try {
