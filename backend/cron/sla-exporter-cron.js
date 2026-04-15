@@ -12,7 +12,13 @@ let AWS;
 let s3;
 try {
   AWS = require('aws-sdk');
-  s3 = new AWS.S3({ region: process.env.AWS_REGION || 'us-east-1' });
+  const s3Config = { region: process.env.AWS_REGION || 'us-east-1' };
+  if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
+    s3Config.accessKeyId = process.env.AWS_ACCESS_KEY_ID;
+    s3Config.secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+    if (process.env.AWS_SESSION_TOKEN) s3Config.sessionToken = process.env.AWS_SESSION_TOKEN;
+  }
+  s3 = new AWS.S3(s3Config);
 } catch (e) {
   logger.info('AWS SDK not available - using local storage only');
 }
@@ -85,9 +91,9 @@ async function exportSLAToQuickSight() {
       empresa: t.empresa,
       owner: t.owner_name,
       customer: t.customer_name,
-      created_at: t.created_at,
-      updated_at: t.updated_at,
-      close_at: t.close_at,
+      created_at: t.created_at ? moment(t.created_at).toISOString() : null,
+      updated_at: t.updated_at ? moment(t.updated_at).toISOString() : null,
+      close_at: t.close_at ? moment(t.close_at).toISOString() : null,
       fase: t.bld_ticket_fase,
       responsable: t.bld_responsable,
       prioridad_cliente: t.bld_prority_customer,
@@ -180,6 +186,24 @@ async function exportSLAToQuickSight() {
     const ticketsByNumber = new Map(tickets.map(t => [String(t.ticket_number), t]));
     const ticketsFull = timelines.map(row => {
       const t = ticketsByNumber.get(String(row.ticket_number)) || {};
+      
+      // Calcular resolution_flag y resolution_status
+      const isClosed = !!t.close_at;
+      const resolutionMet = t.resolution_sla_met;
+      const resolution_flag = isClosed ? (resolutionMet ? 'Met' : 'Breached') : 'Open';
+      const resolution_status = isClosed ? 'Closed' : 'Open';
+      
+      // Calcular SLA_Status general
+      const firstResponseMet = t.first_response_sla_met;
+      let SLA_Status = 'Open';
+      if (isClosed) {
+        if (firstResponseMet && resolutionMet) {
+          SLA_Status = 'Met';
+        } else {
+          SLA_Status = 'Breached';
+        }
+      }
+      
       return {
         ticket_id: t.id || null,
         ticket_number: row.ticket_number,
@@ -191,21 +215,24 @@ async function exportSLAToQuickSight() {
         empresa: row.empresa || t.empresa || null,
         owner: row.owner || t.owner_name || null,
         customer: t.customer_name || null,
-        created_at: t.created_at || null,
-        updated_at: t.updated_at || null,
-        close_at: t.close_at || null,
+        created_at: t.created_at ? moment(t.created_at).toISOString() : null,
+        updated_at: t.updated_at ? moment(t.updated_at).toISOString() : null,
+        close_at: t.close_at ? moment(t.close_at).toISOString() : null,
         fase: t.bld_ticket_fase || null,
         responsable: t.bld_responsable || null,
         prioridad_cliente: t.bld_prority_customer || null,
-        start_time: row.start_time || null,
-        end_time: row.end_time || null,
+        start_time: row.start_time ? moment(row.start_time).toISOString() : null,
+        end_time: row.end_time ? moment(row.end_time).toISOString() : null,
         duration_minutes: row.duration_minutes || null,
         period_type: row.period_type || null,
         step: row.step || null,
         sla_first_response_target_minutes: t.sla_config ? t.sla_config.firstResponse : null,
         sla_resolution_target_minutes: t.sla_config ? t.sla_config.resolution : null,
         first_response_sla_met: t.first_response_sla_met === undefined ? null : t.first_response_sla_met,
-        resolution_sla_met: t.resolution_sla_met === undefined ? null : t.resolution_sla_met
+        resolution_sla_met: t.resolution_sla_met === undefined ? null : t.resolution_sla_met,
+        resolution_flag: resolution_flag,
+        resolution_status: resolution_status,
+        SLA_Status: SLA_Status
       };
     });
 
@@ -235,7 +262,10 @@ async function exportSLAToQuickSight() {
       sla_first_response_target_minutes: { type: 'INT32', optional: true },
       sla_resolution_target_minutes: { type: 'INT32', optional: true },
       first_response_sla_met: { type: 'BOOLEAN', optional: true },
-      resolution_sla_met: { type: 'BOOLEAN', optional: true }
+      resolution_sla_met: { type: 'BOOLEAN', optional: true },
+      resolution_flag: { type: 'UTF8', optional: true },
+      resolution_status: { type: 'UTF8', optional: true },
+      SLA_Status: { type: 'UTF8', optional: true }
     });
 
     await writeParquetFile(ticketsFullSchema, ticketsFull, ticketsFullPath);
@@ -252,6 +282,16 @@ async function exportSLAToQuickSight() {
       console.log(`   ✓ tickets → ${s3Locations['tickets'].latest}`);
       console.log(`   ✓ ticket_timelines → ${s3Locations['ticket_timelines'].latest}`);
       console.log('   Files uploaded to S3\n');
+
+      // Eliminar archivos locales después del upload exitoso
+      try {
+        fs.unlinkSync(ticketsPath);
+        fs.unlinkSync(timelinesPath);
+        fs.unlinkSync(ticketsFullPath);
+        console.log('   ✓ Archivos locales eliminados después del upload a S3\n');
+      } catch (cleanupErr) {
+        console.warn('   ⚠ No se pudieron eliminar algunos archivos locales:', cleanupErr.message);
+      }
 
       // 5) Trigger Glue Crawler to update Data Catalog (optional)
       if (process.env.AWS_GLUE_CRAWLER_NAME) {
