@@ -80,40 +80,47 @@ async function exportSLAToQuickSight() {
 
     // 2) Transform data (tickets)
     console.log('2) Transforming data (tickets)...');
-    const flatTickets = tickets.map(t => ({
-      ticket_id: t.id,
-      ticket_number: t.ticket_number,
-      ticket_label: t.ticket_number,
-      title: t.title,
-      type: t.type,
-      state: t.state_name,
-      priority: t.priority_name,
-      organization: t.organization_name,
-      empresa: t.empresa,
-      owner: t.owner_name,
-      customer: t.customer_name,
-      created_at: t.created_at ? moment(t.created_at).toISOString() : null,
-      updated_at: t.updated_at ? moment(t.updated_at).toISOString() : null,
-      close_at: t.close_at ? moment(t.close_at).toISOString() : null,
-      fase: t.bld_ticket_fase,
-      responsable: t.bld_responsable,
-      prioridad_cliente: t.bld_prority_customer,
-      hightech_time_minutes: t.hightech_time_minutes,
-      client_time_minutes: t.client_time_minutes,
-      first_response_time_minutes: t.first_response_time_minutes,
-      hightech_time_formatted: t.hightech_time_formatted,
-      client_time_formatted: t.client_time_formatted,
-      sla_first_response_target_minutes: t.sla_config.firstResponse,
-      sla_resolution_target_minutes: t.sla_config.resolution,
-      first_response_sla_met: t.first_response_sla_met,
-      resolution_sla_met: t.resolution_sla_met,
-      year_month: moment(t.created_at).format('YYYY-MM'),
-      year: moment(t.created_at).format('YYYY'),
-      month: moment(t.created_at).format('MM'),
-      quarter: 'Q' + moment(t.created_at).quarter(),
-      day_of_week: moment(t.created_at).format('dddd'),
-      is_closed: !!t.close_at
-    }));
+    const flatTickets = tickets.map(t => {
+      // Calcular duration_days (desde created_at hasta close_at o ahora)
+      const endDate = t.close_at || moment();
+      const durationDays = moment(endDate).diff(moment(t.created_at), 'days', true);
+      
+      return {
+        ticket_id: t.id,
+        ticket_number: t.ticket_number,
+        ticket_label: t.ticket_number,
+        title: t.title,
+        type: t.type,
+        state: t.state_name,
+        priority: t.priority_name,
+        organization: t.organization_name,
+        empresa: t.empresa,
+        owner: t.owner_name,
+        customer: t.customer_name,
+        created_at: t.created_at ? moment(t.created_at).toISOString() : null,
+        updated_at: t.updated_at ? moment(t.updated_at).toISOString() : null,
+        close_at: t.close_at ? moment(t.close_at).toISOString() : null,
+        fase: t.bld_ticket_fase,
+        responsable: t.bld_responsable,
+        prioridad_cliente: t.bld_prority_customer,
+        hightech_time_minutes: t.hightech_time_minutes,
+        client_time_minutes: t.client_time_minutes,
+        first_response_time_minutes: t.first_response_time_minutes,
+        hightech_time_formatted: t.hightech_time_formatted,
+        client_time_formatted: t.client_time_formatted,
+        sla_first_response_target_minutes: t.sla_config.firstResponse,
+        sla_resolution_target_minutes: t.sla_config.resolution,
+        first_response_sla_met: t.first_response_sla_met,
+        resolution_sla_met: t.resolution_sla_met,
+        duration_days: Math.round(durationDays * 100) / 100, // Redondear a 2 decimales
+        year_month: moment(t.created_at).format('YYYY-MM'),
+        year: moment(t.created_at).format('YYYY'),
+        month: moment(t.created_at).format('MM'),
+        quarter: 'Q' + moment(t.created_at).quarter(),
+        day_of_week: moment(t.created_at).format('dddd'),
+        is_closed: !!t.close_at
+      };
+    });
     console.log('   Data transformed (tickets)\n');
 
     // 2b) Transform data (ticket_timelines)
@@ -156,6 +163,7 @@ async function exportSLAToQuickSight() {
       sla_resolution_target_minutes: { type: 'INT32', optional: true },
       first_response_sla_met: { type: 'BOOLEAN', optional: true },
       resolution_sla_met: { type: 'BOOLEAN', optional: true },
+      duration_days: { type: 'DOUBLE', optional: true },
       year_month: { type: 'UTF8', optional: true },
       year: { type: 'UTF8', optional: true },
       month: { type: 'UTF8', optional: true },
@@ -206,6 +214,10 @@ async function exportSLAToQuickSight() {
         }
       }
       
+      // Calcular duration_days
+      const endDate = t.close_at || moment();
+      const durationDays = t.created_at ? moment(endDate).diff(moment(t.created_at), 'days', true) : null;
+      
       return {
         ticket_id: t.id || null,
         ticket_number: row.ticket_number,
@@ -235,7 +247,8 @@ async function exportSLAToQuickSight() {
         resolution_sla_met: t.resolution_sla_met === undefined ? null : t.resolution_sla_met,
         resolution_flag: resolution_flag,
         resolution_status: resolution_status,
-        SLA_Status: SLA_Status
+        SLA_Status: SLA_Status,
+        duration_days: durationDays !== null ? Math.round(durationDays * 100) / 100 : null
       };
     });
 
@@ -269,7 +282,8 @@ async function exportSLAToQuickSight() {
       resolution_sla_met: { type: 'BOOLEAN', optional: true },
       resolution_flag: { type: 'UTF8', optional: true },
       resolution_status: { type: 'UTF8', optional: true },
-      SLA_Status: { type: 'UTF8', optional: true }
+      SLA_Status: { type: 'UTF8', optional: true },
+      duration_days: { type: 'DOUBLE', optional: true }
     });
 
     await writeParquetFile(ticketsFullSchema, ticketsFull, ticketsFullPath);

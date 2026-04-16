@@ -260,12 +260,14 @@ EC2 CRON (diario 7:00 AM)       Glue Crawler (diario 7:30 AM)    QuickSight
 
 | Tabla | Descripción | Registros aprox | Columnas destacadas |
 |---|---|---|---|
-| `tickets` | Todos los tickets con métricas SLA aplanadas | ~2,700+ | `ticket_id`, `ticket_label`, `state`, `created_at`, `close_at`, `first_response_sla_met`, `resolution_sla_met` |
+| `tickets` | Todos los tickets con métricas SLA aplanadas | ~2,700+ | `ticket_id`, `ticket_label`, `duration_days`, `state`, `created_at`, `close_at`, `first_response_sla_met`, `resolution_sla_met` |
 | `ticket_timelines` | Historial de cambios de estado por ticket | ~21,000+ | `ticket_number`, `state`, `start_time`, `end_time`, `duration_minutes`, `period_type` |
-| `tickets_full` | Consolidado de tickets + timelines con columnas calculadas | ~21,000+ | Todas las anteriores + `ticket_label`, `resolution_flag`, `resolution_status`, `SLA_Status` |
+| `tickets_full` | Consolidado de tickets + timelines con columnas calculadas | ~21,000+ | Todas las anteriores + `ticket_label`, `duration_days`, `resolution_flag`, `resolution_status`, `SLA_Status` |
 
 **Columnas calculadas en tickets_full:**
 
+- `ticket_label`: Número del ticket (mismo valor que `ticket_number`)
+- `duration_days`: Duración en días desde la creación hasta el cierre (o hasta ahora si está abierto)
 - `resolution_flag`: "Met" | "Breached" | "Open" (estado del SLA de resolución)
 - `resolution_status`: "Closed" | "Open" (estado del ticket)
 - `SLA_Status`: "Met" | "Breached" | "Open" (estado general del SLA - solo es "Met" si el ticket está cerrado Y ambos SLAs se cumplieron)
