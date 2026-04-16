@@ -15,7 +15,9 @@ function initializeCronJobs() {
     console.error('❌ Error en exportación inicial:', err.message);
   });
   
-  cron.schedule('*/10 * * * *', async () => {
+  // CRON diario a las 7:00 AM Colombia (12:00 UTC)
+  // Sincronizado con Glue Crawler que corre a las 7:30 AM (12:30 UTC)
+  cron.schedule('0 7 * * *', async () => {
     console.log('⏰ CRON TRIGGER: Hora de exportar SLA');
     try {
       await exportSLAToQuickSight();
@@ -26,7 +28,7 @@ function initializeCronJobs() {
   }, {
     timezone: 'America/Bogota'
   });
-  console.log('✓ CRON programado: Exportacion SLA cada 30 minutos');
+  console.log('✓ CRON programado: Exportacion SLA diaria a las 7:00 AM (Colombia)');
   console.log('✓ Zona horaria: America/Bogota\n');
 }
 

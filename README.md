@@ -104,37 +104,33 @@ npm install --prefix backend --production
 npm install --prefix frontend
 npm run build --prefix frontend
 
-# 3. Reiniciar el servidor
-pkill -f "node server.js" || true
-sleep 1
-cd backend
-nohup node server.js > /home/ec2-user/app.log 2>&1 &
+# 3. Reiniciar el servidor con PM2
+pm2 reload sla-reporter
 
 # 4. Verificar que levantó
-sleep 2
-tail -f /home/ec2-user/app.log
+pm2 logs sla-reporter --lines 50
 ```
 
 **Comandos útiles en producción:**
 
 ```bash
 # Ver logs en tiempo real
-tail -f /home/ec2-user/app.log
+pm2 logs sla-reporter
 
 # Verificar que el proceso está corriendo
-ps aux | grep "node server.js"
+pm2 status
 
-# Ver qué proceso escucha en el puerto 443
-sudo lsof -i :443
+# Reiniciar el servidor
+pm2 reload sla-reporter
 
 # Detener el servidor
-pkill -f "node server.js"
+pm2 stop sla-reporter
 
-# Habilitar binding al puerto 443 sin root (hacer una sola vez)
-sudo setcap 'cap_net_bind_service=+ep' $(which node)
+# Ver información detallada del proceso
+pm2 show sla-reporter
 ```
 
-> **Nota:** El servidor corre directamente con Node.js, no dentro de contenedores Docker. El `PORT=443` está configurado en `backend/.env`.
+> **Nota:** El servidor corre con PM2 (process manager) que reinicia automáticamente si hay un crash. El `PORT=443` está configurado en `backend/.env`.
 
 ### URL de la aplicación
 
@@ -205,7 +201,7 @@ Retorna toda la data de SLA en formato aplanado (sin objetos anidados), listo pa
         "ticket_number": "1001",
         "title": "No puedo acceder al sistema",
         "type": "Incidente",
-        "state": "Cerrado",
+        "state": "Cerrado",Agregar:
         "priority": "Media",
         "organization": "[P2068] UNA - Contrato 4",
         "empresa": "Universidad Nacional",
@@ -239,43 +235,52 @@ Retorna toda la data de SLA en formato aplanado (sin objetos anidados), listo pa
 ### Pipeline AWS QuickSight (CRON → S3 → Glue → QuickSight)
 
 ```
-EC2 CRON (2:00 AM COT)          Glue Crawler (2:30 AM COT)         QuickSight
+EC2 CRON (diario 7:00 AM)       Glue Crawler (diario 7:30 AM)    QuickSight
        │                                │                              │
        ▼                                ▼                              ▼
   Zammad DB ──► Parquet ──► S3 ──► Glue Data Catalog ──► Athena ──► SPICE Dataset
-  (PostgreSQL)   (7 tablas)   │         (auto-discover)
+  (PostgreSQL)   (3 tablas)   │         (auto-discover)              (auto-refresh)
                               │
                               └── sla-data/
                                     ├── tickets/data.parquet
-                                    ├── ticket_timeline/data.parquet
-                                    ├── summary/data.parquet
-                                    ├── by_agent/data.parquet
-                                    ├── by_organization/data.parquet
-                                    ├── by_type/data.parquet
-                                    └── metadata/data.parquet
+                                    ├── ticket_timelines/data.parquet
+                                    └── tickets_full/data.parquet
 ```
+
+**Características del pipeline:**
+
+- Exportación automática diaria a las 7:00 AM Colombia (`0 7 * * *`)
+- Ejecución inicial al arrancar el servidor
+- Conversión de fechas a formato ISO 8601 para compatibilidad con QuickSight
+- Limpieza automática de archivos locales después de subir a S3
+- Trigger automático del Glue Crawler después de cada exportación
+- Refresh automático de datasets de QuickSight (si está configurado)
 
 **Tablas en Glue Data Catalog:**
 
-| Tabla | Descripción | Registros aprox |
-|---|---|---|
-| `tickets` | Todos los tickets con métricas SLA aplanadas | ~1,700+ |
-| `ticket_timeline` | Historial de cambios de estado por ticket | ~10,000+ |
-| `summary` | Resumen global de cumplimiento SLA | 1 |
-| `by_agent` | Métricas SLA por agente | ~15 |
-| `by_organization` | Métricas SLA por organización/proyecto | ~20 |
-| `by_type` | Conteo de tickets por tipo (Incidente, RFC) | ~5 |
-| `metadata` | Timestamp y versión de la exportación | 1 |
+| Tabla | Descripción | Registros aprox | Columnas destacadas |
+|---|---|---|---|
+| `tickets` | Todos los tickets con métricas SLA aplanadas | ~2,700+ | `ticket_id`, `state`, `created_at`, `close_at`, `first_response_sla_met`, `resolution_sla_met` |
+| `ticket_timelines` | Historial de cambios de estado por ticket | ~21,000+ | `ticket_number`, `state`, `start_time`, `end_time`, `duration_minutes`, `period_type` |
+| `tickets_full` | Consolidado de tickets + timelines con columnas calculadas | ~21,000+ | Todas las anteriores + `resolution_flag`, `resolution_status`, `SLA_Status` |
+
+**Columnas calculadas en tickets_full:**
+
+- `resolution_flag`: "Met" | "Breached" | "Open" (estado del SLA de resolución)
+- `resolution_status`: "Closed" | "Open" (estado del ticket)
+- `SLA_Status`: "Met" | "Breached" | "Open" (estado general del SLA - solo es "Met" si el ticket está cerrado Y ambos SLAs se cumplieron)
 
 **Costos estimados:**
 
 | Servicio | Costo/mes |
 |---|---|
-| S3 (storage ~50MB + PUTs) | ~$0.02 |
+| S3 (storage ~50MB + PUTs) | ~$0.01 |
 | Glue Crawler (1 run/día x 30 días) | ~$0.30 |
 | Glue Data Catalog (7 tablas) | $0.00 (free tier) |
 | QuickSight Author (1 usuario) | $12-24 |
 | **Total** | **~$12-25** |
+
+**Nota sobre costos:** La configuración anterior (CRON cada 30 minutos) generaba ~1,440 ejecuciones/mes y podía costar $300-600/mes solo en Glue Crawler. La configuración actual (1 vez al día) reduce los costos a menos de $1/mes en infraestructura AWS.
 
 ### Desplegar infraestructura AWS
 
@@ -303,7 +308,12 @@ node -e "require('./cron/sla-exporter-cron').exportSLAToQuickSight().then(consol
 # 6. Conectar QuickSight:
 #    QuickSight → Datasets → New dataset → Athena
 #    Database: zammad_sla_db
-#    Tables: tickets, summary, by_agent, etc.
+#    Tables: tickets, ticket_timelines, tickets_full
+#
+# 7. Configurar auto-refresh en QuickSight (opcional):
+#    - Agregar AWS_QUICKSIGHT_DATASET_ID y AWS_ACCOUNT_ID al .env
+#    - El CRON disparará automáticamente el refresh cada 30 minutos
+#    - También puedes configurar refresh manual en QuickSight: Dataset → Refresh → Schedule refresh
 ```
 
 ## DynamoDB — Configuración de proyectos y equipos
@@ -319,8 +329,28 @@ La aplicación usa DynamoDB para almacenar la configuración de proyectos y equi
 
 ### Autenticación AWS
 
-- **En EC2:** se usa el IAM Instance Profile (`nuv-prod-ai-servicecenterEC2Role`). No se necesitan credenciales en el `.env`.
+- **En EC2:** se usa el IAM Instance Profile (`nuv-prod-ai-servicecenterEC2Role`). No se necesitan credenciales en el `.env`. Las credenciales se renuevan automáticamente sin expiración.
 - **En local:** se requieren credenciales válidas en `~/.aws/credentials` o variables de entorno `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`. Las credenciales temporales de SSO expiran cada pocas horas.
+
+**Permisos del rol IAM en EC2:**
+
+El rol `nuv-prod-ai-servicecenterEC2Role` tiene las siguientes políticas:
+
+1. `DinamoDBforslas` - Acceso a DynamoDB para leer configuración de proyectos y equipos
+2. `SLAExporterS3Glue` - Acceso a S3 para subir Parquet y disparar Glue Crawler
+3. Política inline para QuickSight:
+```json
+{
+  "Effect": "Allow",
+  "Action": [
+    "quicksight:CreateIngestion",
+    "quicksight:DescribeIngestion"
+  ],
+  "Resource": [
+    "arn:aws:quicksight:us-east-1:874641912777:dataset/*/*"
+  ]
+}
+```
 
 ### Estructura de un proyecto en DynamoDB
 
@@ -434,12 +464,18 @@ Un agente puede pertenecer a múltiples equipos (su área y su gerencia). El fil
 | `TIMEZONE` | Zona horaria del servidor | `America/Bogota` |
 | `CORS_ORIGIN` | Dominios permitidos para CORS (separar con coma) | `*` |
 | `SERVE_FRONTEND` | Servir frontend desde Express (`false` si está en S3) | `true` |
-| `AWS_S3_BUCKET` | Bucket S3 para Parquet (pipeline) | `zammad-sla-reporter-prod-123456` |
+| `AWS_S3_BUCKET` | Bucket S3 para Parquet (pipeline) | `zammad-sla-reporter-prod-874641912777` |
 | `AWS_S3_PREFIX` | Prefijo S3 de los datos | `sla-data` |
 | `AWS_REGION` | Región AWS | `us-east-1` |
 | `AWS_GLUE_CRAWLER_NAME` | Nombre del Glue Crawler | `zammad-sla-reporter-crawler-latest-prod` |
+| `AWS_QUICKSIGHT_DATASET_ID` | IDs de datasets de QuickSight (separados por coma) | `ae663899-2bc4-41fa-8f67-be19a1cb20de,220eea89-7b35-4f49-a91f-9044013cb21d` |
+| `AWS_ACCOUNT_ID` | ID de la cuenta AWS (12 dígitos) | `874641912777` |
 | `DYNAMO_PROJECTS_TABLE` | Tabla DynamoDB de proyectos | `sla-reporter-projects` |
 | `DYNAMO_TEAMS_TABLE` | Tabla DynamoDB de equipos | `sla-reporter-teams` |
+
+**Nota sobre autenticación AWS:**
+- En EC2: Se usa el IAM Instance Profile (`nuv-prod-ai-servicecenterEC2Role`) automáticamente. No se necesitan credenciales en el `.env`.
+- En local: Se requieren credenciales válidas en `~/.aws/credentials` o variables de entorno `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` (para SSO).
 
 ## Repositorio
 
