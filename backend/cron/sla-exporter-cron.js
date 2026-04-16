@@ -83,6 +83,7 @@ async function exportSLAToQuickSight() {
     const flatTickets = tickets.map(t => ({
       ticket_id: t.id,
       ticket_number: t.ticket_number,
+      ticket_label: t.ticket_number,
       title: t.title,
       type: t.type,
       state: t.state_name,
@@ -131,6 +132,7 @@ async function exportSLAToQuickSight() {
     const ticketsSchema = new parquet.ParquetSchema({
       ticket_id: { type: 'INT64' },
       ticket_number: { type: 'UTF8', optional: true },
+      ticket_label: { type: 'UTF8', optional: true },
       title: { type: 'UTF8', optional: true },
       type: { type: 'UTF8', optional: true },
       state: { type: 'UTF8', optional: true },
@@ -207,6 +209,7 @@ async function exportSLAToQuickSight() {
       return {
         ticket_id: t.id || null,
         ticket_number: row.ticket_number,
+        ticket_label: row.ticket_number,
         title: row.title || t.title || null,
         type: t.type || null,
         state: row.state || null,
@@ -240,6 +243,7 @@ async function exportSLAToQuickSight() {
     const ticketsFullSchema = new parquet.ParquetSchema({
       ticket_id: { type: 'INT64', optional: true },
       ticket_number: { type: 'UTF8' },
+      ticket_label: { type: 'UTF8', optional: true },
       title: { type: 'UTF8', optional: true },
       type: { type: 'UTF8', optional: true },
       state: { type: 'UTF8', optional: true },

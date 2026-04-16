@@ -249,20 +249,20 @@ EC2 CRON (diario 7:00 AM)       Glue Crawler (diario 7:30 AM)    QuickSight
 
 **Características del pipeline:**
 
-- Exportación automática diaria a las 7:00 AM Colombia (`0 7 * * *`)
+- Exportación automática diaria a las 8:00 AM Colombia (`0 8 * * *`)
 - Ejecución inicial al arrancar el servidor
 - Conversión de fechas a formato ISO 8601 para compatibilidad con QuickSight
 - Limpieza automática de archivos locales después de subir a S3
 - Trigger automático del Glue Crawler después de cada exportación
-- Refresh automático de datasets de QuickSight (si está configurado)
+- Refresh automático de datasets de QuickSight (si está configurado con `AWS_QUICKSIGHT_DATASET_ID`)
 
 **Tablas en Glue Data Catalog:**
 
 | Tabla | Descripción | Registros aprox | Columnas destacadas |
 |---|---|---|---|
-| `tickets` | Todos los tickets con métricas SLA aplanadas | ~2,700+ | `ticket_id`, `state`, `created_at`, `close_at`, `first_response_sla_met`, `resolution_sla_met` |
+| `tickets` | Todos los tickets con métricas SLA aplanadas | ~2,700+ | `ticket_id`, `ticket_label`, `state`, `created_at`, `close_at`, `first_response_sla_met`, `resolution_sla_met` |
 | `ticket_timelines` | Historial de cambios de estado por ticket | ~21,000+ | `ticket_number`, `state`, `start_time`, `end_time`, `duration_minutes`, `period_type` |
-| `tickets_full` | Consolidado de tickets + timelines con columnas calculadas | ~21,000+ | Todas las anteriores + `resolution_flag`, `resolution_status`, `SLA_Status` |
+| `tickets_full` | Consolidado de tickets + timelines con columnas calculadas | ~21,000+ | Todas las anteriores + `ticket_label`, `resolution_flag`, `resolution_status`, `SLA_Status` |
 
 **Columnas calculadas en tickets_full:**
 
@@ -276,11 +276,11 @@ EC2 CRON (diario 7:00 AM)       Glue Crawler (diario 7:30 AM)    QuickSight
 |---|---|
 | S3 (storage ~50MB + PUTs) | ~$0.01 |
 | Glue Crawler (1 run/día x 30 días) | ~$0.30 |
-| Glue Data Catalog (7 tablas) | $0.00 (free tier) |
+| Glue Data Catalog (3 tablas) | $0.00 (free tier) |
 | QuickSight Author (1 usuario) | $12-24 |
 | **Total** | **~$12-25** |
 
-**Nota sobre costos:** La configuración anterior (CRON cada 30 minutos) generaba ~1,440 ejecuciones/mes y podía costar $300-600/mes solo en Glue Crawler. La configuración actual (1 vez al día) reduce los costos a menos de $1/mes en infraestructura AWS.
+**Nota sobre costos:** El CRON se ejecuta 1 vez al día (8:00 AM Colombia), lo que mantiene los costos de infraestructura AWS muy bajos (~$0.30/mes en Glue Crawler).
 
 ### Desplegar infraestructura AWS
 
@@ -310,10 +310,10 @@ node -e "require('./cron/sla-exporter-cron').exportSLAToQuickSight().then(consol
 #    Database: zammad_sla_db
 #    Tables: tickets, ticket_timelines, tickets_full
 #
-# 7. Configurar auto-refresh en QuickSight (opcional):
-#    - Agregar AWS_QUICKSIGHT_DATASET_ID y AWS_ACCOUNT_ID al .env
-#    - El CRON disparará automáticamente el refresh cada 30 minutos
-#    - También puedes configurar refresh manual en QuickSight: Dataset → Refresh → Schedule refresh
+# 7. Configurar auto-refresh en QuickSight:
+#    - Agregar AWS_QUICKSIGHT_DATASET_ID (separar con coma si son varios) y AWS_ACCOUNT_ID al .env
+#    - El CRON disparará automáticamente el refresh diariamente a las 8:00 AM después de cada exportación
+#    - Asegurarse de que el rol IAM tenga permisos quicksight:CreateIngestion
 ```
 
 ## DynamoDB — Configuración de proyectos y equipos
@@ -468,8 +468,6 @@ Un agente puede pertenecer a múltiples equipos (su área y su gerencia). El fil
 | `AWS_S3_PREFIX` | Prefijo S3 de los datos | `sla-data` |
 | `AWS_REGION` | Región AWS | `us-east-1` |
 | `AWS_GLUE_CRAWLER_NAME` | Nombre del Glue Crawler | `zammad-sla-reporter-crawler-latest-prod` |
-| `AWS_QUICKSIGHT_DATASET_ID` | IDs de datasets de QuickSight (separados por coma) | `ae663899-2bc4-41fa-8f67-be19a1cb20de,220eea89-7b35-4f49-a91f-9044013cb21d` |
-| `AWS_ACCOUNT_ID` | ID de la cuenta AWS (12 dígitos) | `874641912777` |
 | `DYNAMO_PROJECTS_TABLE` | Tabla DynamoDB de proyectos | `sla-reporter-projects` |
 | `DYNAMO_TEAMS_TABLE` | Tabla DynamoDB de equipos | `sla-reporter-teams` |
 
