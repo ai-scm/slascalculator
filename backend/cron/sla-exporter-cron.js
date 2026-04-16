@@ -307,6 +307,30 @@ async function exportSLAToQuickSight() {
           }
         }
       }
+
+      // 6) Trigger QuickSight dataset refresh (optional)
+      if (process.env.AWS_QUICKSIGHT_DATASET_ID && process.env.AWS_ACCOUNT_ID) {
+        try {
+          const quicksight = new AWS.QuickSight({ region: process.env.AWS_REGION || 'us-east-1' });
+          const datasetIds = process.env.AWS_QUICKSIGHT_DATASET_ID.split(',').map(id => id.trim());
+          
+          for (const datasetId of datasetIds) {
+            const ingestionId = `refresh-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            try {
+              await quicksight.createIngestion({
+                DataSetId: datasetId,
+                IngestionId: ingestionId,
+                AwsAccountId: process.env.AWS_ACCOUNT_ID
+              }).promise();
+              console.log(`   ✓ QuickSight dataset "${datasetId}" refresh triggered`);
+            } catch (qsErr) {
+              console.error(`   ⚠ Could not trigger QuickSight refresh for "${datasetId}":`, qsErr.message);
+            }
+          }
+        } catch (err) {
+          console.error('   ⚠ Error processing QuickSight refresh:', err.message);
+        }
+      }
     } else {
       console.log('4) S3 upload skipped (AWS_S3_BUCKET not configured)\n');
     }
