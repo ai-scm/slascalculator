@@ -1,23 +1,21 @@
 const moment = require('moment');
 require('moment-business-days');
 const { DATABASE } = require('../config/constants');
+const holidayService = require('./holidayService'); // ← NUEVO
 
-/**
- * Servicio para calcular tiempo laboral según diferentes calendarios
- * Soporta:
- * - Laboral: Lunes-Viernes, 8:00 AM - 5:00 PM (9 horas)
- * - 24/7: Todos los días, todo el tiempo (sin exclusiones)
- * - Extendido: Lunes-Domingo, 8:00 AM - 10:00 PM (14 horas)
- */
 class WorkingHoursService {
   
   constructor() {
-    // Configurar días festivos de Colombia (para usar en calendarios que los requieran)
+    // 1. Configurar festivos SÍNCRONOS (fallback inmediato)
     this.setupColombianHolidays();
+    
+    // 2. Actualizar en background con datos de API (sin bloquear)
+    this.updateHolidaysFromAPI();
   }
 
   /**
-   * Configurar días festivos de Colombia
+   * Configurar días festivos de Colombia (VERSIÓN SÍNCRONA - SIN CAMBIOS)
+   * Mantiene tu lógica actual como fallback
    */
   setupColombianHolidays() {
     const year = new Date().getFullYear();
@@ -37,24 +35,58 @@ class WorkingHoursService {
       moment(`${year}-12-25`) // Navidad
     ];
 
-    // Feriados móviles — actualizar cada año.
-    // TODO: Reemplazar con librería `date-holidays` o tabla de BD para soporte dinámico.
+    // Feriados móviles (tu lógica actual)
     if (year === 2025) {
-      fixedHolidays.push(moment('2025-04-18')); // Viernes Santo 2025
-      fixedHolidays.push(moment('2025-05-12')); // Corpus Christi 2025
-      fixedHolidays.push(moment('2025-05-19')); // Sagrado Corazón 2025
+      fixedHolidays.push(moment('2025-04-18'));
+      fixedHolidays.push(moment('2025-05-12'));
+      fixedHolidays.push(moment('2025-05-19'));
     } else if (year === 2026) {
-      fixedHolidays.push(moment('2026-04-03')); // Viernes Santo 2026
-      fixedHolidays.push(moment('2026-05-28')); // Corpus Christi 2026
-      fixedHolidays.push(moment('2026-06-04')); // Sagrado Corazón 2026
+      fixedHolidays.push(moment('2026-04-03'));
+      fixedHolidays.push(moment('2026-05-28'));
+      fixedHolidays.push(moment('2026-06-04'));
     } else if (year > 2026) {
-      console.warn(`[WorkingHoursService] Festivos móviles no configurados para ${year}. Los cálculos de SLA pueden ser incorrectos en días festivos.`);
+      console.warn(`[WorkingHoursService] Festivos móviles no configurados para ${year}.`);
     }
 
-    // Convertir a array de strings
     this.holidayDates = new Set(fixedHolidays.map(d => d.format('YYYY-MM-DD')));
+    console.log(`📅 [WorkingHoursService] Festivos iniciales: ${this.holidayDates.size} (año ${year})`);
   }
 
+  /**
+   * NUEVO: Actualizar festivos desde API en background
+   * No bloquea la inicialización del servicio
+   */
+  updateHolidaysFromAPI() {
+    const year = new Date().getFullYear();
+    
+    // Ejecutar en background (no await, no bloquea)
+    holidayService.getColombianHolidays(year)
+      .then(apiHolidays => {
+        if (apiHolidays.size > 0) {
+          const beforeCount = this.holidayDates.size;
+          this.holidayDates = apiHolidays;
+          console.log(`✅ [WorkingHoursService] Festivos actualizados desde API: ${beforeCount} → ${apiHolidays.size}`);
+        }
+      })
+      .catch(error => {
+        console.warn(`⚠️ [WorkingHoursService] No se pudo actualizar desde API, usando fallback:`, error.message);
+      });
+  }
+
+  /**
+   * OPCIONAL: Método para forzar actualización manual
+   */
+  async refreshHolidays(year = new Date().getFullYear()) {
+    try {
+      const apiHolidays = await holidayService.getColombianHolidays(year);
+      this.holidayDates = apiHolidays;
+      console.log(`✅ [WorkingHoursService] Festivos refrescados manualmente: ${apiHolidays.size}`);
+      return true;
+    } catch (error) {
+      console.error(`❌ [WorkingHoursService] Error al refrescar festivos:`, error);
+      return false;
+    }
+  }
   /**
    * Seleccionar tipo de calendario y ajustar parámetros
    * @param {string} calendarType - 'laboral', 'continuo', '24x7'
