@@ -1,0 +1,154 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram name="Pipeline QuickSight" id="pipeline-qs">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="Pipeline de Datos AWS — Zammad SLA Reporter → QuickSight" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="350" y="20" width="800" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" value="CRON (EC2) → Parquet → S3 → Glue Crawler → Data Catalog → Athena → QuickSight" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontStyle=2;fontColor=#555555;" vertex="1" parent="1">
+          <mxGeometry x="350" y="50" width="800" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Stage 1: Source -->
+        <mxCell id="stage1" value="1. Fuente de datos" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="100" width="200" height="720" as="geometry" />
+        </mxCell>
+        <mxCell id="pg" value="RDS PostgreSQL&#10;BD Zammad (solo lectura)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#3334B9;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;html=1;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.rds;labelBackgroundColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="100" y="180" width="78" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="pg-tables" value="Tablas consultadas:&#10;• ticket&#10;• ticket_article&#10;• ticket_state&#10;• ticket_priority&#10;• organization&#10;• user / groups&#10;• sla&#10;• calendar" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;align=left;verticalAlign=top;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="60" y="320" width="160" height="160" as="geometry" />
+        </mxCell>
+
+        <!-- Stage 2: CRON -->
+        <mxCell id="stage2" value="2. Extraccion &amp; transformacion" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;verticalAlign=top;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="280" y="100" width="260" height="720" as="geometry" />
+        </mxCell>
+        <mxCell id="ec2" value="EC2 10.67.4.151&#10;Amazon Linux + Node.js 20" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#ED7100;strokeColor=#ffffff;verticalLabelPosition=bottom;verticalAlign=top;html=1;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;labelBackgroundColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="365" y="150" width="78" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="cron" value="cron/sla-exporter-cron.js&#10;cron-scheduler.js&#10;⏰ 02:00 AM Colombia (07:00 UTC)&#10;Diario" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;align=center;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="300" y="290" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="transform" value="Transformacion:&#10;• SLAService → calcula cumplimiento&#10;• workingHoursService → horarios laborales&#10;• parquetjs-lite → serializa a Parquet&#10;&#10;Genera 7 datasets:&#10;tickets, ticket_timeline, summary,&#10;by_agent, by_organization, by_type, metadata" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="300" y="380" width="220" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="audit" value="DynamoDB — auditoria&#10;(dynamoService.js)&#10;registra cada ejecucion" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#3334B9;strokeColor=#ffffff;verticalLabelPosition=bottom;verticalAlign=top;html=1;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.dynamodb;labelBackgroundColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="365" y="600" width="78" height="78" as="geometry" />
+        </mxCell>
+
+        <!-- Stage 3: Storage -->
+        <mxCell id="stage3" value="3. Almacenamiento (S3)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;verticalAlign=top;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="580" y="100" width="300" height="720" as="geometry" />
+        </mxCell>
+        <mxCell id="s3" value="S3 Bucket&#10;zammad-sla-reporter-prod-{acct}" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#7AA116;strokeColor=#ffffff;verticalLabelPosition=bottom;verticalAlign=top;html=1;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.s3;labelBackgroundColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="681" y="150" width="78" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="s3-latest" value="sla-data/&lt;tabla&gt;/data.parquet&#10;(latest snapshot — sobreescribe)&#10;➜ apuntado por Glue Crawler" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;align=left;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="600" y="290" width="260" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="s3-hist" value="sla-data-history/&lt;tabla&gt;/&#10;year=YYYY/month=MM/day=DD/data.parquet&#10;(Hive partitions, consultable en Athena)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;align=left;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="600" y="380" width="260" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="s3-lifecycle" value="Lifecycle policies:&#10;• history/ → GLACIER despues de 90 dias&#10;• history/ → eliminacion despues de 365 dias&#10;• latest/ → versiones antiguas expiran a 30 dias&#10;&#10;Versioning: Enabled&#10;DeletionPolicy: Retain" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="600" y="480" width="260" height="130" as="geometry" />
+        </mxCell>
+
+        <!-- Stage 4: Catalog -->
+        <mxCell id="stage4" value="4. Catalogo (Glue)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;verticalAlign=top;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="920" y="100" width="280" height="720" as="geometry" />
+        </mxCell>
+        <mxCell id="crawler" value="Glue Crawler&#10;zammad-sla-reporter-*&#10;⏰ 02:30 AM Colombia (07:30 UTC)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#8C4FFF;strokeColor=#ffffff;verticalLabelPosition=bottom;verticalAlign=top;html=1;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.glue;labelBackgroundColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="150" width="78" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="catalog" value="Glue Data Catalog&#10;DB: zammad_sla_db&#10;&#10;Tablas descubiertas:&#10;• tickets&#10;• ticket_timeline&#10;• summary&#10;• by_agent&#10;• by_organization&#10;• by_type&#10;• metadata" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;align=left;verticalAlign=top;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="940" y="300" width="240" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="iam-crawler" value="IAM Role Crawler&#10;AWSGlueServiceRole&#10;+ S3 Read" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#C7131F;strokeColor=#ffffff;verticalLabelPosition=bottom;verticalAlign=top;html=1;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.identity_and_access_management_iam;labelBackgroundColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="550" width="78" height="78" as="geometry" />
+        </mxCell>
+
+        <!-- Stage 5: Consumo -->
+        <mxCell id="stage5" value="5. Consumo &amp; visualizacion" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;verticalAlign=top;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1240" y="100" width="230" height="720" as="geometry" />
+        </mxCell>
+        <mxCell id="athena" value="Athena&#10;(opcional — queries ad hoc)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#8C4FFF;strokeColor=#ffffff;verticalLabelPosition=bottom;verticalAlign=top;html=1;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.athena;labelBackgroundColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="1316" y="180" width="78" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="qs" value="QuickSight&#10;Dashboards SLA" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#E7157B;strokeColor=#ffffff;verticalLabelPosition=bottom;verticalAlign=top;html=1;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.quicksight;labelBackgroundColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="1316" y="360" width="78" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="qs-users" value="Usuarios corporativos&#10;(VPN + SSO)&#10;&#10;Dashboards:&#10;• Cumplimiento SLA global&#10;• Por agente / organizacion / tipo&#10;• Tendencias historicas&#10;• Duracion (duration_days)&#10;• Etiquetas (ticket-label)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;align=left;verticalAlign=top;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1260" y="560" width="200" height="180" as="geometry" />
+        </mxCell>
+
+        <!-- Edges -->
+        <mxCell id="e1" value="SQL (pg)" style="endArrow=classic;html=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#3334B9;fontSize=11;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="pg" target="cron">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="139" y="410" />
+              <mxPoint x="410" y="410" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e2" value="lee BD" style="endArrow=classic;html=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#b85450;fontSize=11;" edge="1" parent="1" source="ec2" target="cron">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="genera" style="endArrow=classic;html=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#b85450;fontSize=11;" edge="1" parent="1" source="cron" target="transform">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="s3:PutObject" style="endArrow=classic;html=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#7AA116;fontSize=11;" edge="1" parent="1" source="transform" target="s3-latest">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="archivo diario" style="endArrow=classic;html=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#7AA116;fontSize=11;" edge="1" parent="1" source="transform" target="s3-hist">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="logs" style="endArrow=classic;html=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#3334B9;fontSize=11;dashed=1;" edge="1" parent="1" source="transform" target="audit">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" value="glue:StartCrawler" style="endArrow=classic;html=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#8C4FFF;fontSize=11;dashed=1;" edge="1" parent="1" source="transform" target="crawler">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" value="crawl Parquet" style="endArrow=classic;html=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#8C4FFF;fontSize=11;" edge="1" parent="1" source="crawler" target="s3-latest">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" value="registra tablas" style="endArrow=classic;html=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#9673a6;fontSize=11;" edge="1" parent="1" source="crawler" target="catalog">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" value="usa rol" style="endArrow=classic;html=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#C7131F;fontSize=11;dashed=1;" edge="1" parent="1" source="crawler" target="iam-crawler">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" value="lee catalogo" style="endArrow=classic;html=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#8C4FFF;fontSize=11;" edge="1" parent="1" source="athena" target="catalog">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" value="Athena / SPICE" style="endArrow=classic;html=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#E7157B;fontSize=11;" edge="1" parent="1" source="qs" target="catalog">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" value="visualizan" style="endArrow=classic;html=1;edgeStyle=orthogonalEdgeStyle;strokeColor=#E7157B;fontSize=11;" edge="1" parent="1" source="qs-users" target="qs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Timeline strip -->
+        <mxCell id="timeline-title" value="Ventana de ejecucion diaria" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="840" width="300" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="tl-cron" value="02:00 COL — CRON dispara en EC2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="865" width="240" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="tl-s3" value="~02:20 COL — Parquet en S3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="300" y="865" width="240" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="tl-crawler" value="02:30 COL — Crawler actualiza catalogo" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="560" y="865" width="240" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="tl-qs" value="Manana — QuickSight sirve datos frescos" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6f0;strokeColor=#E7157B;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="820" y="865" width="260" height="30" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
