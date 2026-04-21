@@ -17,7 +17,7 @@ function initializeCronJobs() {
   
   // CRON diario a las 8:00 AM Colombia
   // Sincronizado con Glue Crawler que se dispara automáticamente después de cada exportación
-  cron.schedule('0 8 * * *', async () => {
+  cron.schedule('0 7 * * *', async () => {
     console.log('⏰ CRON TRIGGER: Hora de exportar SLA');
     try {
       await exportSLAToQuickSight();
