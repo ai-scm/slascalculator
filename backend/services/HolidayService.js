@@ -6,6 +6,7 @@ const moment = require('moment-timezone');
 class HolidayService {
   constructor() {
     this.cache = new Map();
+    this.dynamicFallback = new Map(); // Almacena fallback dinámico actualizado desde API
     this.cacheExpiration = 24 * 60 * 60 * 1000; // 24 horas
   }
 
@@ -40,7 +41,11 @@ class HolidayService {
         timestamp: Date.now()
       });
 
+      // NUEVO: Actualizar el fallback dinámico con datos de la API
+      this.dynamicFallback.set(year, holidays);
       console.log(`✅ [HolidayService] ${holidays.size} festivos obtenidos para ${year}`);
+      console.log(`📝 [HolidayService] Fallback dinámico actualizado con datos de API`);
+      
       return holidays;
 
     } catch (error) {
@@ -50,10 +55,17 @@ class HolidayService {
   }
 
   /**
-   * Festivos de respaldo
+   * Festivos de respaldo - Usa fallback dinámico (de API previa) o estático
    */
   getFallbackHolidays(year) {
-    console.warn(`⚠️ [HolidayService] Usando fallback para ${year}`);
+    // OPCIÓN 2: Primero verificar si existe fallback dinámico (datos de API previos)
+    if (this.dynamicFallback.has(year)) {
+      console.warn(`⚠️ [HolidayService] Usando fallback DINÁMICO para ${year} (${this.dynamicFallback.get(year).size} festivos de API previa)`);
+      return this.dynamicFallback.get(year);
+    }
+
+    // Si no hay fallback dinámico, usar fallback estático
+    console.warn(`⚠️ [HolidayService] Usando fallback ESTÁTICO para ${year}`);
     
     return new Set([
       `${year}-01-01`, `${year}-05-01`, `${year}-07-20`,
