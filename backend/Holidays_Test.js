@@ -1,47 +1,46 @@
 const holidayService = require('./services/HolidayService');
 
 (async () => {
-  console.log('=== 📅 PRUEBA DE OPCIÓN 2: FALLBACK DINÁMICO ===\n');
+  console.log('=== 📅 PRUEBA DE ACTUALIZACIÓN CONTROLADA DE FALLBACK ===\n');
 
   const year = 2026;
+  const outsideUpdateDate = new Date('2026-02-15');
+  const firstUpdateDate = new Date('2026-01-15');
+  const repeatUpdateDate = new Date('2026-01-15');
+  const otherDate = new Date('2026-09-16');
 
-  // PASO 1: Fallback antes de consultar API (estará vacío, así que es estático)
-  console.log('1️⃣ ANTES de consultar API:');
-  const fallbackBefore = holidayService.getFallbackHolidays(year);
-  console.log(`   📌 Fallback inicial: ${fallbackBefore.size} festivos`);
-  console.log(`   Fuente: ${fallbackBefore.size === 6 ? 'ESTÁTICO (hardcodeado)' : 'DINÁMICO (de API previa)'}\n`);
+  console.log('1️⃣ FUERA DE VENTANA DE ACTUALIZACIÓN (NO debe consumir API):');
+  const fallbackBefore = await holidayService.getColombianHolidays(year, outsideUpdateDate);
+  const statusBefore = holidayService.getFallbackStatus(year);
+  console.log(`   Fecha: ${outsideUpdateDate.toISOString().slice(0, 10)}`);
+  console.log(`   Fallback usado: ${statusBefore.source}`);
+  console.log(`   Festivos: ${fallbackBefore.size}`);
+  console.log(`   Status:`, statusBefore, '\n');
 
-  // PASO 2: Consultar API explícitamente
-  console.log('2️⃣ Consultando API para cargar el fallback dinámico:');
-  const apiHolidays = await holidayService.getColombianHolidays(year);
-  console.log(`   🌐 Datos de API: ${apiHolidays.size} festivos (Año Nuevo: ${apiHolidays.has(`${year}-01-01`)}, Jul 20: ${apiHolidays.has(`${year}-07-20`)})\n`);
+  console.log('2️⃣ EN FECHA DE ACTUALIZACIÓN PERMITIDA (debe intentar API):');
+  const apiHolidays = await holidayService.getColombianHolidays(year, firstUpdateDate);
+  const statusAfter = holidayService.getFallbackStatus(year);
+  console.log(`   Fecha: ${firstUpdateDate.toISOString().slice(0, 10)}`);
+  console.log(`   Resultado API: ${apiHolidays.size} festivos`);
+  console.log(`   Fallback actual: ${statusAfter.source}`);
+  console.log(`   Status:`, statusAfter, '\n');
 
-  // PASO 3: Verificar que el fallback se ha actualizado
-  console.log('3️⃣ DESPUÉS de consultar API exitosamente:');
-  const fallbackAfter = holidayService.getFallbackHolidays(year);
-  console.log(`   📌 Fallback actualizado: ${fallbackAfter.size} festivos`);
-  console.log(`   Fuente: ${fallbackAfter.size > 6 ? 'DINÁMICO (de API)' : 'ESTÁTICO (hardcodeado)'}\n`);
+  console.log('3️⃣ REPETIR MISMA FECHA DE ACTUALIZACIÓN (no debe contar como nueva actualización):');
+  const apiHolidaysRepeat = await holidayService.getColombianHolidays(year, repeatUpdateDate);
+  const statusRepeat = holidayService.getFallbackStatus(year);
+  console.log(`   Fecha: ${repeatUpdateDate.toISOString().slice(0, 10)}`);
+  console.log(`   Resultado repetido: ${apiHolidaysRepeat.size} festivos`);
+  console.log(`   Status:`, statusRepeat, '\n');
 
-  // PASO 4: Comparación
-  console.log('4️⃣ COMPARACIÓN ANTES vs DESPUÉS:');
-  if (fallbackBefore.size === fallbackAfter.size) {
-    console.log(`   ⚠️  FALLBACK NO CAMBIÓ: ${fallbackBefore.size} = ${fallbackAfter.size}`);
-  } else {
-    console.log(`   ✅ FALLBACK SÍ SE ACTUALIZÓ: ${fallbackBefore.size} → ${fallbackAfter.size}`);
-    console.log(`   📈 Festivos adicionales capturados: +${fallbackAfter.size - fallbackBefore.size}`);
-    const newOnes = Array.from(fallbackAfter).filter(f => !fallbackBefore.has(f));
-    console.log(`   🆕 Nuevas fechas en fallback: ${newOnes.sort().join(', ')}\n`);
-  }
+  console.log('4️⃣ OTRA FECHA FUERA DE VENTANA (debe usar fallback sin consumir API):');
+  const fallbackAfter = await holidayService.getColombianHolidays(year, otherDate);
+  const statusFinal = holidayService.getFallbackStatus(year);
+  console.log(`   Fecha: ${otherDate.toISOString().slice(0, 10)}`);
+  console.log(`   Fallback usado: ${statusFinal.source}`);
+  console.log(`   Festivos: ${fallbackAfter.size}`);
+  console.log(`   Status:`, statusFinal, '\n');
 
-  // PASO 5: Demostración del beneficio
-  console.log('5️⃣ BENEFICIO DE OPCIÓN 2:');
-  if (fallbackAfter.size > fallbackBefore.size) {
-    console.log(`   ✨ Si la API falla ahora, el fallback tendrá ${fallbackAfter.size} festivos en lugar de ${fallbackBefore.size}`);
-    console.log(`   📊 Precisión mejorada: ${((fallbackAfter.size - fallbackBefore.size) / fallbackBefore.size * 100).toFixed(0)}% más completo`);
-  } else {
-    console.log(`   ℹ️  La API falló, así que usa fallback estático`);
-  }
-
-  console.log('\n6️⃣ PRUEBAS FUNCIONALES:');
-  console.log(`   Probando: isHoliday('2026-07-20') = ${await holidayService.isHoliday(`${year}-07-20`)} ✓`);
+  console.log('5️⃣ VALIDACIÓN DE FUNCIONALIDAD:');
+  console.log(`   isHoliday('2026-07-20'): ${await holidayService.isHoliday('2026-07-20')}`);
+  console.log(`   isHoliday('2026-07-21'): ${await holidayService.isHoliday('2026-07-21')}`);
 })();

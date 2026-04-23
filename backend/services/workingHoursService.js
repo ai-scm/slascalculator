@@ -1,7 +1,7 @@
 const moment = require('moment');
 require('moment-business-days');
 const { DATABASE } = require('../config/constants');
-const holidayService = require('./holidayService'); // ← NUEVO
+const holidayService = require('./HolidayService'); // ← CORREGIDO: nombre del archivo
 
 class WorkingHoursService {
   
@@ -14,67 +14,36 @@ class WorkingHoursService {
   }
 
   /**
-   * Configurar días festivos de Colombia (VERSIÓN SÍNCRONA - SIN CAMBIOS)
-   * Mantiene tu lógica actual como fallback
+   * Configurar días festivos de Colombia usando HolidayService
    */
   setupColombianHolidays() {
     const year = new Date().getFullYear();
-    
-    // Feriados fijos de Colombia
-    const fixedHolidays = [
-      moment(`${year}-01-01`), // Año Nuevo
-      moment(`${year}-01-08`), // Reyes Magos
-      moment(`${year}-03-25`), // San José
-      moment(`${year}-05-01`), // Día del Trabajo
-      moment(`${year}-07-01`), // San Pedro y San Pablo
-      moment(`${year}-07-20`), // Independencia
-      moment(`${year}-08-07`), // Batalla de Boyacá
-      moment(`${year}-08-15`), // Asunción
-      moment(`${year}-11-01`), // Todos los Santos
-      moment(`${year}-12-08`), // Inmaculada Concepción
-      moment(`${year}-12-25`) // Navidad
-    ];
-
-    // Feriados móviles (tu lógica actual)
-    if (year === 2025) {
-      fixedHolidays.push(moment('2025-04-18'));
-      fixedHolidays.push(moment('2025-05-12'));
-      fixedHolidays.push(moment('2025-05-19'));
-    } else if (year === 2026) {
-      fixedHolidays.push(moment('2026-04-03'));
-      fixedHolidays.push(moment('2026-05-28'));
-      fixedHolidays.push(moment('2026-06-04'));
-    } else if (year > 2026) {
-      console.warn(`[WorkingHoursService] Festivos móviles no configurados para ${year}.`);
-    }
-
-    this.holidayDates = new Set(fixedHolidays.map(d => d.format('YYYY-MM-DD')));
+    this.holidayDates = holidayService.getFallbackHolidays(year);
     console.log(`📅 [WorkingHoursService] Festivos iniciales: ${this.holidayDates.size} (año ${year})`);
   }
 
   /**
-   * NUEVO: Actualizar festivos desde API en background
-   * No bloquea la inicialización del servicio
+   * Actualizar festivos desde HolidayService (solo en fechas permitidas)
    */
   updateHolidaysFromAPI() {
     const year = new Date().getFullYear();
-    
+
     // Ejecutar en background (no await, no bloquea)
     holidayService.getColombianHolidays(year)
       .then(apiHolidays => {
         if (apiHolidays.size > 0) {
           const beforeCount = this.holidayDates.size;
           this.holidayDates = apiHolidays;
-          console.log(`✅ [WorkingHoursService] Festivos actualizados desde API: ${beforeCount} → ${apiHolidays.size}`);
+          console.log(`✅ [WorkingHoursService] Festivos actualizados desde HolidayService: ${beforeCount} → ${apiHolidays.size}`);
         }
       })
       .catch(error => {
-        console.warn(`⚠️ [WorkingHoursService] No se pudo actualizar desde API, usando fallback:`, error.message);
+        console.warn(`⚠️ [WorkingHoursService] No se pudo actualizar desde HolidayService, usando fallback:`, error.message);
       });
   }
 
   /**
-   * OPCIONAL: Método para forzar actualización manual
+   * Forzar actualización manual de festivos
    */
   async refreshHolidays(year = new Date().getFullYear()) {
     try {
