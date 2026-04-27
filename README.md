@@ -249,7 +249,7 @@ EC2 CRON (diario 7:00 AM)       Glue Crawler (diario 7:30 AM)    QuickSight
 
 **Características del pipeline:**
 
-- Exportación automática diaria a las 8:00 AM Colombia (`0 8 * * *`)
+- Exportación automática diaria a las 6:00 AM Colombia (`0 6 * * *`)
 - Ejecución inicial al arrancar el servidor
 - Conversión de fechas a formato ISO 8601 para compatibilidad con QuickSight
 - Limpieza automática de archivos locales después de subir a S3
@@ -282,7 +282,7 @@ EC2 CRON (diario 7:00 AM)       Glue Crawler (diario 7:30 AM)    QuickSight
 | QuickSight Author (1 usuario) | $12-24 |
 | **Total** | **~$12-25** |
 
-**Nota sobre costos:** El CRON se ejecuta 1 vez al día (8:00 AM Colombia), lo que mantiene los costos de infraestructura AWS muy bajos (~$0.30/mes en Glue Crawler).
+**Nota sobre costos:** El CRON se ejecuta 1 vez al día (6:00 AM Colombia), lo que mantiene los costos de infraestructura AWS muy bajos (~$0.30/mes en Glue Crawler). Cuando QuickSight se implemente en los televisores, la frecuencia se cambiará a cada 4 horas para mayor actualización de datos.
 
 ### Desplegar infraestructura AWS
 
@@ -314,7 +314,7 @@ node -e "require('./cron/sla-exporter-cron').exportSLAToQuickSight().then(consol
 #
 # 7. Configurar auto-refresh en QuickSight:
 #    - Agregar AWS_QUICKSIGHT_DATASET_ID (separar con coma si son varios) y AWS_ACCOUNT_ID al .env
-#    - El CRON disparará automáticamente el refresh diariamente a las 8:00 AM después de cada exportación
+#    - El CRON disparará automáticamente el refresh diariamente a las 6:00 AM después de cada exportación
 #    - Asegurarse de que el rol IAM tenga permisos quicksight:CreateIngestion
 ```
 
