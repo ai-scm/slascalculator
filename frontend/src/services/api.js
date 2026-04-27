@@ -112,6 +112,16 @@ export const apiService = {
     return response.data.data || [];
   },
 
+  /**
+   * Obtener resumen de Niveles de Soporte (N1 vs N2)
+   * @param {Object} filters - Filtros (startDate, endDate)
+   */
+  getLevelsSummary: async (filters) => {
+    const filteredData = filterNullValues(filters);
+    const response = await api.post('/levels/summary', filteredData);
+    return response.data.data;
+  },
+
   // ==================== MÉTRICAS Y TICKETS ====================
 
   /**

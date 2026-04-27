@@ -1,0 +1,44 @@
+{
+  "_comment": "Listas de emails por nivel de soporte. El script seed-support-levels.js resuelve estos emails contra users.email en Zammad para obtener agent_ids y los sube a DynamoDB (sla-reporter-teams) como records con type='level'. Para modificar membresia: editar este JSON y volver a correr el script, O editar directamente en la consola de DynamoDB.",
+  "levels": [
+    {
+      "id": "level-n1",
+      "name": "Nivel 1",
+      "emails": [
+        "alan.castillo@blend360.com",
+        "andres.camacho@blend360.com",
+        "angelica.becerra@blend360.com",
+        "armando.aguilera@blend360.com",
+        "carlos.aroca@blend360.com",
+        "david.siatama@blend360.com",
+        "johan.espino@blend360.com",
+        "johan.velandia@blend360.com",
+        "maximiliano.pulido@blend360.com",
+        "miguel.carrillo@blend360.com",
+        "santiago.bastos@blend360.com",
+        "valentina.salazar@blend360.com",
+        "victor.castellanos@blend360.com"
+      ]
+    },
+    {
+      "id": "level-n2",
+      "name": "Nivel 2",
+      "emails": [
+        "alejandro.espitia@blend360.com",
+        "alejandro.mora@blend360.com",
+        "camilo.lopez@blend360.com",
+        "daniela.lalle@blend360.com",
+        "fernando.garcia@blend360.com",
+        "jairo.salas@blend360.com",
+        "jorge.torres@blend360.com",
+        "julian.cadena@blend360.com",
+        "luisa.sarmiento@blend360.com",
+        "magda.herrera@blend360.com",
+        "moises.rojas@blend360.com",
+        "oscar.perez@blend360.com",
+        "santiago.barbosa@blend360.com",
+        "sebastian.spitta@blend360.com"
+      ]
+    }
+  ]
+}

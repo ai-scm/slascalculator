@@ -3,6 +3,7 @@ const router = express.Router();
 const slaService = require('../services/slaService');
 const excelService = require('../services/excelService');
 const dynamoService = require('../services/dynamoService');
+const levelService = require('../services/levelService');
 const {
   validate,
   filtersValidation,
@@ -63,6 +64,17 @@ router.get('/agents', async (req, res) => {
     res.json({ success: true, data: agents });
   } catch (error) {
     handleApiError(res, error, 'agentes');
+  }
+});
+
+// Obtener resumen de Niveles de Soporte (N1 vs N2)
+router.post('/levels/summary', filtersValidation, validate, async (req, res) => {
+  try {
+    const data = await levelService.getSummary(req.body);
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('❌ [BACKEND /api/levels/summary] Error:', error.message);
+    handleApiError(res, error, 'niveles');
   }
 });
 

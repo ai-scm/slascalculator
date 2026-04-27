@@ -18,6 +18,7 @@ import SLAProgress from '../components/metrics/SLAProgress';
 import SLATrendChart from '../components/charts/SLATrendChart';
 import TicketDistributionChart from '../components/charts/TicketDistributionChart';
 import TicketsByStateChart from '../components/charts/TicketsByStateChart';
+import SupportLevelsView from '../components/charts/SupportLevelsView';
 import TicketsTable from '../components/tables/TicketsTable';
 import VPNConnectionModal from '../components/modals/VPNConnectionModal';
 import ToastContainer from '../components/common/Toast';
@@ -411,6 +412,16 @@ const Dashboard = () => {
                 >
                   Tickets
                 </button>
+                <button
+                  onClick={() => setActiveTab('levels')}
+                  className={`px-4 py-3 font-medium transition-colors ${
+                    activeTab === 'levels'
+                      ? 'border-b-2 border-primary text-primary'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Niveles
+                </button>
               </div>
 
               {/* Tab: Overview */}
@@ -489,7 +500,7 @@ const Dashboard = () => {
               )}
 
               {/* Tab: Tickets */}
-              {activeTab === 'tickets' && (
+              {activeTab === 'tickets' && metrics && (
                 <>
                   {/* Gráfica de Tickets por Estado */}
                   <div className="animate-fade-in-up">
@@ -501,6 +512,13 @@ const Dashboard = () => {
                     <TicketsTable tickets={state.tickets} filterState={ticketStateFilter} onClearFilter={() => setTicketStateFilter(null)} />
                   </div>
                 </>
+              )}
+
+              {/* Tab: Niveles de Soporte */}
+              {activeTab === 'levels' && (
+                <div className="animate-fade-in-up">
+                  <SupportLevelsView filters={state.filters} />
+                </div>
               )}
             </>
           )}
