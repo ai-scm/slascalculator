@@ -321,16 +321,16 @@ class SLAService {
         t.title,
         t.type,
         t.organization_id,
-        o.name as organization_name,
+        COALESCE(o.name, 'Sin organización') as organization_name,
         o.bld_cliente_padre,
         t.owner_id,
-        CONCAT(u.firstname, ' ', u.lastname) as owner_name,
+        COALESCE(CONCAT(u.firstname, ' ', u.lastname), 'Sin asignar') as owner_name,
         t.customer_id,
-        CONCAT(c.firstname, ' ', c.lastname) as customer_name,
+        COALESCE(CONCAT(c.firstname, ' ', c.lastname), 'Sin cliente') as customer_name,
         t.state_id,
-        ts.name as state_name,
+        COALESCE(ts.name, 'Sin estado') as state_name,
         t.priority_id,
-        tp.name as priority_name,
+        COALESCE(tp.name, 'Sin prioridad') as priority_name,
         t.created_at,
         t.updated_at,
         t.close_at,
@@ -341,8 +341,8 @@ class SLAService {
         t.bld_responsable,
         t.bld_prority_customer,
         t.bld_cliente,
-        CONCAT(ub.firstname, ' ', ub.lastname) as created_by_name,
-        CONCAT(uu.firstname, ' ', uu.lastname) as updated_by_name
+        COALESCE(CONCAT(ub.firstname, ' ', ub.lastname), 'Sin usuario') as created_by_name,
+        COALESCE(CONCAT(uu.firstname, ' ', uu.lastname), 'Sin usuario') as updated_by_name
       FROM tickets t
       LEFT JOIN organizations o ON t.organization_id = o.id
       LEFT JOIN users u ON t.owner_id = u.id

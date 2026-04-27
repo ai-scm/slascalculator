@@ -76,7 +76,21 @@ async function exportSLAToQuickSight() {
     // 1) Fetch data
     console.log('1) Fetching data from SLAService...');
     const tickets = await SLAService.getTicketsWithSLA();
-    console.log(`   ${tickets.length} tickets found\n`);
+    console.log(`   ${tickets.length} tickets found`);
+    
+    // DEBUG: Contar tickets por fecha para verificar
+    const ticketsByDate = {};
+    tickets.forEach(t => {
+      const date = moment(t.created_at).format('YYYY-MM-DD');
+      ticketsByDate[date] = (ticketsByDate[date] || 0) + 1;
+    });
+    console.log('   Tickets por fecha:', ticketsByDate);
+    
+    // DEBUG: Contar tickets cerrados vs abiertos
+    const closedCount = tickets.filter(t => !!t.close_at).length;
+    const openCount = tickets.filter(t => !t.close_at).length;
+    console.log(`   Cerrados: ${closedCount}, Abiertos: ${openCount}`);
+    console.log('');
 
     // 2) Transform data (tickets)
     console.log('2) Transforming data (tickets)...');
@@ -98,8 +112,12 @@ async function exportSLAToQuickSight() {
         owner: t.owner_name,
         customer: t.customer_name,
         created_at: t.created_at ? moment(t.created_at).toISOString() : null,
+        created_at_colombia: t.created_at ? moment(t.created_at).utcOffset(-5).format('YYYY-MM-DD HH:mm:ss') : null,
+        created_date_colombia: t.created_at ? moment(t.created_at).utcOffset(-5).format('YYYY-MM-DD') : null,
         updated_at: t.updated_at ? moment(t.updated_at).toISOString() : null,
         close_at: t.close_at ? moment(t.close_at).toISOString() : null,
+        close_at_colombia: t.close_at ? moment(t.close_at).utcOffset(-5).format('YYYY-MM-DD HH:mm:ss') : null,
+        close_date_colombia: t.close_at ? moment(t.close_at).utcOffset(-5).format('YYYY-MM-DD') : null,
         fase: t.bld_ticket_fase,
         responsable: t.bld_responsable,
         prioridad_cliente: t.bld_prority_customer,
@@ -149,8 +167,12 @@ async function exportSLAToQuickSight() {
       owner: { type: 'UTF8', optional: true },
       customer: { type: 'UTF8', optional: true },
       created_at: { type: 'UTF8', optional: true },
+      created_at_colombia: { type: 'UTF8', optional: true },
+      created_date_colombia: { type: 'UTF8', optional: true },
       updated_at: { type: 'UTF8', optional: true },
       close_at: { type: 'UTF8', optional: true },
+      close_at_colombia: { type: 'UTF8', optional: true },
+      close_date_colombia: { type: 'UTF8', optional: true },
       fase: { type: 'UTF8', optional: true },
       responsable: { type: 'UTF8', optional: true },
       prioridad_cliente: { type: 'UTF8', optional: true },
