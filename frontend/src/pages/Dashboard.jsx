@@ -42,10 +42,6 @@ const Dashboard = () => {
   }, [ticketStateFilter]);
   const autoLoadDoneRef = useRef(false);
 
-  // Mostrar modal invitando a conectar VPN apenas se carga la app
-  useEffect(() => {
-    setShowVPNModal(true);
-  }, []);
 
   const loadInitialData = async () => {
     try {
@@ -166,10 +162,11 @@ const Dashboard = () => {
     }
   }, [state.filters, dispatch]);
 
-  // Auto-cargar últimos 30 días una sola vez cuando se monta (SIN dependencias problemáticas)
+  // Auto-cargar datos iniciales y últimos 30 días una sola vez cuando se monta
   useEffect(() => {
-    // NO hacer nada aquí. El usuario debe presionar "Reintentar" en el modal primero
-    // para intentar la conexión
+    if (autoLoadDoneRef.current) return;
+    autoLoadDoneRef.current = true;
+    handleVPNRetry();
   }, []); // Array vacío = ejecuta 1 sola vez
 
   // Cargar historial cuando se busca un ticket individual
