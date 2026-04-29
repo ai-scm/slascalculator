@@ -15,10 +15,9 @@ function initializeCronJobs() {
     console.error('❌ Error en exportación inicial:', err.message);
   });
   
-  // CRON diario a las 6:00 AM Colombia
+  // CRON diario a las 8:00 AM Colombia
   // Sincronizado con Glue Crawler que se dispara automáticamente después de cada exportación
-  // NOTA: Cuando QuickSight se implemente en los televisores, cambiar a cada 4 horas: '0 */4 * * *'
-  cron.schedule('0 6 * * *', async () => {
+  cron.schedule('0 8 * * *', async () => {
     console.log('⏰ CRON TRIGGER: Hora de exportar SLA');
     try {
       await exportSLAToQuickSight();
@@ -29,7 +28,7 @@ function initializeCronJobs() {
   }, {
     timezone: 'America/Bogota'
   });
-  console.log('✓ CRON programado: Exportacion SLA diaria a las 6:00 AM (Colombia)');
+  console.log('✓ CRON programado: Exportacion SLA diaria a las 8:00 AM (Colombia)');
   console.log('✓ Zona horaria: America/Bogota\n');
 }
 

@@ -40,3 +40,4 @@ temp/
 
 # Config de deploy local (contiene ruta al .pem)
 .env.deploy
+.claude/
