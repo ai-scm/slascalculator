@@ -26,7 +26,9 @@ const FilterPanel = ({ onLoadMetrics, onExportExcel }) => {
         type: 'SET_FILTERS',
         payload: {
           startDate: thirtyDaysAgo,
-          endDate: today
+          endDate: today,
+          // Preservar el filtro de tipo por defecto
+          type: state.filters.type || 'Incident'
         }
       });
     }
@@ -147,7 +149,7 @@ const FilterPanel = ({ onLoadMetrics, onExportExcel }) => {
       ownerId: null,
       teamId: null,
       state: null,
-      type: null
+      type: 'Incident' // Mantener Incident como filtro por defecto
     };
     setLocalFilters(clearedFilters);
     setActivePreset('Últimos 30 días');
