@@ -22,7 +22,7 @@ const initialState = {
     ownerId: null,
     teamId: null,
     state: null,
-    type: null
+    type: 'Incidente' // Filtro por defecto
   },
 
   // UI State
