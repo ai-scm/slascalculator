@@ -452,7 +452,10 @@ class SLAService {
           const firstResponseMinutes = await this.calculateFirstResponseTime(ticket.id, ticket.created_at, ticketCalendarType, ticketHistories);
 
           const firstResponseMet = firstResponseMinutes <= slaTargets.firstResponse;
-          const resolutionMet = highTechMinutes <= slaTargets.resolution;
+          
+          // Solo evaluar tiempo de resolución para tickets Cerrados o Cancelados
+          const isClosedOrCanceled = ticket.state_name === 'Cerrado' || ticket.state_name === 'Cancelado';
+          const resolutionMet = isClosedOrCanceled ? (highTechMinutes <= slaTargets.resolution) : null;
 
           // Lookup empresa y equipo del agente desde DynamoDB (O(1))
           const empresa = projectConfig?.empresa || this.getEmpresaNombre(ticket.bld_cliente_padre);
@@ -749,9 +752,9 @@ class SLAService {
         avg_time_minutes: 0
       },
       
-      // Métricas de resolución
+      // Métricas de resolución (solo tickets Cerrados o Cancelados)
       resolution: {
-        total_with_sla: tickets.length,
+        total_with_sla: tickets.filter(t => t.state_name === 'Cerrado' || t.state_name === 'Cancelado').length,
         met: tickets.filter(t => t.resolution_sla_met === true).length,
         breached: tickets.filter(t => t.resolution_sla_met === false).length,
         compliance_rate: 0,
@@ -797,7 +800,7 @@ class SLAService {
     }
     
     const resolutionTimes = tickets
-      .filter(t => t.hightech_time_minutes > 0) // Usamos hightech como tiempo de resolución
+      .filter(t => (t.state_name === 'Cerrado' || t.state_name === 'Cancelado') && t.hightech_time_minutes > 0) // Solo tickets cerrados/cancelados
       .map(t => t.hightech_time_minutes);
     
     if (resolutionTimes.length > 0) {
@@ -821,8 +824,11 @@ class SLAService {
         if (ticket.close_at)                          agent.closed++;
         if (ticket.first_response_sla_met === true)   agent.first_response_met++;
         if (ticket.first_response_sla_met === false)  agent.first_response_breached++;
-        if (ticket.resolution_sla_met === true)       agent.resolution_met++;
-        if (ticket.resolution_sla_met === false)      agent.resolution_breached++;
+        // Solo contar resolución para tickets Cerrados o Cancelados
+        if (ticket.state_name === 'Cerrado' || ticket.state_name === 'Cancelado') {
+          if (ticket.resolution_sla_met === true)       agent.resolution_met++;
+          if (ticket.resolution_sla_met === false)      agent.resolution_breached++;
+        }
       }
 
       // --- Por equipo ---
@@ -833,8 +839,11 @@ class SLAService {
         if (ticket.close_at)                          team.closed++;
         if (ticket.first_response_sla_met === true)   team.first_response_met++;
         if (ticket.first_response_sla_met === false)  team.first_response_breached++;
-        if (ticket.resolution_sla_met === true)       team.resolution_met++;
-        if (ticket.resolution_sla_met === false)      team.resolution_breached++;
+        // Solo contar resolución para tickets Cerrados o Cancelados
+        if (ticket.state_name === 'Cerrado' || ticket.state_name === 'Cancelado') {
+          if (ticket.resolution_sla_met === true)       team.resolution_met++;
+          if (ticket.resolution_sla_met === false)      team.resolution_breached++;
+        }
       }
 
       // --- Por organización ---
@@ -845,8 +854,11 @@ class SLAService {
         if (ticket.close_at)                          org.closed++;
         if (ticket.first_response_sla_met === true)   org.first_response_met++;
         if (ticket.first_response_sla_met === false)  org.first_response_breached++;
-        if (ticket.resolution_sla_met === true)       org.resolution_met++;
-        if (ticket.resolution_sla_met === false)      org.resolution_breached++;
+        // Solo contar resolución para tickets Cerrados o Cancelados
+        if (ticket.state_name === 'Cerrado' || ticket.state_name === 'Cancelado') {
+          if (ticket.resolution_sla_met === true)       org.resolution_met++;
+          if (ticket.resolution_sla_met === false)      org.resolution_breached++;
+        }
       }
 
       // --- Por tipo (Incidente, RFC, RFI) ---
