@@ -16,22 +16,21 @@ const FilterPanel = ({ onLoadMetrics, onExportExcel }) => {
   const [localFilters, setLocalFilters] = useState({
     ...state.filters,
     startDate: state.filters.startDate || thirtyDaysAgo,
-    endDate: state.filters.endDate || today,
-    type: state.filters.type || 'Incidente' // Asegurar valor por defecto
+    endDate: state.filters.endDate || today
   });
 
-  // Sincronizar fechas y tipo por defecto con el contexto global al montar
+  // Sincronizar fechas por defecto con el contexto global al montar
   useEffect(() => {
-    const updates = {};
     if (!state.filters.startDate || !state.filters.endDate) {
-      updates.startDate = thirtyDaysAgo;
-      updates.endDate = today;
-    }
-    if (!state.filters.type) {
-      updates.type = 'Incidente';
-    }
-    if (Object.keys(updates).length > 0) {
-      dispatch({ type: 'SET_FILTERS', payload: updates });
+      dispatch({
+        type: 'SET_FILTERS',
+        payload: {
+          startDate: thirtyDaysAgo,
+          endDate: today,
+          // Preservar el filtro de tipo por defecto
+          type: state.filters.type || 'Incident'
+        }
+      });
     }
   }, []);
 
@@ -150,7 +149,7 @@ const FilterPanel = ({ onLoadMetrics, onExportExcel }) => {
       ownerId: null,
       teamId: null,
       state: null,
-      type: 'Incidente'
+      type: 'Incident' // Mantener Incident como filtro por defecto
     };
     setLocalFilters(clearedFilters);
     setActivePreset('Últimos 30 días');
