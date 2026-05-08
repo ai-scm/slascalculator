@@ -22,7 +22,7 @@ const initialState = {
     ownerId: null,
     teamId: null,
     state: null,
-    type: null
+    type: 'Incident' // Filtro por defecto
   },
 
   // UI State
@@ -114,9 +114,10 @@ function appReducer(state, action) {
         ...state,
         filters: {
           ...initialState.filters,
-          // Mantener fechas por defecto al resetear
+          // Mantener fechas y tipo por defecto al resetear
           startDate: state.filters.startDate,
-          endDate: state.filters.endDate
+          endDate: state.filters.endDate,
+          type: 'Incident'
         },
         pagination: { ...state.pagination, currentPage: 1 }
       };
