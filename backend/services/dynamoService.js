@@ -16,18 +16,30 @@ function _invalidateTeams() { _teamsCache = null; }
 async function getAllProjects() {
   if (_projectsCache && Date.now() < _projectsExpiry) return _projectsCache;
 
-  const result = await dynamodb.scan({ TableName: TABLES.PROJECTS }).promise();
-  _projectsCache = result.Items || [];
-  _projectsExpiry = Date.now() + CACHE_TTL_MS;
-  return _projectsCache;
+  try {
+    const result = await dynamodb.scan({ TableName: TABLES.PROJECTS }).promise();
+    _projectsCache = result.Items || [];
+    _projectsExpiry = Date.now() + CACHE_TTL_MS;
+    return _projectsCache;
+  } catch (error) {
+    console.warn('[DynamoDB] Error al obtener proyectos, usando fallback vacío:', error.message);
+    _projectsCache = [];
+    _projectsExpiry = Date.now() + CACHE_TTL_MS;
+    return _projectsCache;
+  }
 }
 
 async function getProject(id) {
-  const result = await dynamodb.get({
-    TableName: TABLES.PROJECTS,
-    Key: { id: id.toString() }
-  }).promise();
-  return result.Item || null;
+  try {
+    const result = await dynamodb.get({
+      TableName: TABLES.PROJECTS,
+      Key: { id: id.toString() }
+    }).promise();
+    return result.Item || null;
+  } catch (error) {
+    console.warn(`[DynamoDB] Error al obtener proyecto ${id}, retornando null:`, error.message);
+    return null;
+  }
 }
 
 /**
@@ -67,18 +79,24 @@ async function getProjectsMap() {
 async function getAllTeams() {
   if (_teamsCache && Date.now() < _teamsExpiry) return _teamsCache;
 
-  const result = await dynamodb.scan({ TableName: TABLES.TEAMS }).promise();
-  _teamsCache = result.Items || [];
-  _teamsExpiry = Date.now() + CACHE_TTL_MS;
-  return _teamsCache;
+    const result = await dynamodb.scan({ TableName: TABLES.TEAMS }).promise();
+    _teamsCache = result.Items || [];
+    _teamsExpiry = Date.now() + CACHE_TTL_MS;
+    return _teamsCache;
+
 }
 
 async function getTeam(id) {
-  const result = await dynamodb.get({
-    TableName: TABLES.TEAMS,
-    Key: { id }
-  }).promise();
-  return result.Item || null;
+  try {
+    const result = await dynamodb.get({
+      TableName: TABLES.TEAMS,
+      Key: { id }
+    }).promise();
+    return result.Item || null;
+  } catch (error) {
+    console.warn(`[DynamoDB] Error al obtener equipo ${id}, retornando null:`, error.message);
+    return null;
+  }
 }
 
 /**

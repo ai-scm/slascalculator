@@ -285,15 +285,41 @@ router.post('/export/quicksight', async (req, res) => {
 // Generar reporte Excel
 router.post('/generate-report', generateReportValidation, validate, async (req, res) => {
   try {
-    // AHORA: El body contiene filtros y las imágenes de las gráficas
-    const { filters, charts } = req.body;
+    const { filters, charts, levelData: frontendLevelData } = req.body;
+    const chartGeneratorService = require('../services/chartGeneratorService');
 
     // Obtener datos frescos para el reporte
     const tickets = await slaService.getTicketsWithSLA(filters);
     const metrics = await slaService.getSLAMetrics(filters);
+    
+    // Usar levelData del frontend, o generar si no existe
+    let levelData = frontendLevelData;
+    if (!levelData) {
+      try {
+        levelData = await levelService.getSummary(filters);
+      } catch (error) {
+        console.warn('⚠️ No se pudieron obtener datos de niveles:', error.message);
+        levelData = null;
+      }
+    }
+
+    // Generar gráficos de niveles (si hay datos)
+    let chartsToExcel = { ...charts };
+    if (levelData) {
+      const levelCharts = await chartGeneratorService.generateLevelCharts(levelData);
+
+      // Convertir buffers PNG a base64 para Excel
+      chartsToExcel = {
+        ...chartsToExcel,
+        levelAttendance: levelCharts.levelAttendance ? chartGeneratorService.bufferToBase64(levelCharts.levelAttendance) : null,
+        levelFunnel: levelCharts.funnel ? chartGeneratorService.bufferToBase64(levelCharts.funnel) : null,
+        levelEscalators: levelCharts.topEscalators ? chartGeneratorService.bufferToBase64(levelCharts.topEscalators) : null,
+        levelData: levelData // Pasar datos brutos también
+      };
+    }
 
     // Generar Excel, pasando las gráficas al servicio
-    const workbook = await excelService.generateSLAReport(tickets, metrics, filters, charts);
+    const workbook = await excelService.generateSLAReport(tickets, metrics, filters, chartsToExcel);
 
     // Configurar respuesta
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
