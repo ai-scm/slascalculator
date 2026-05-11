@@ -33,28 +33,14 @@ const SupportLevelsView = ({ filters }) => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    
-    // Pass all filters to backend
-    const apiFilters = {
-      startDate: filters.startDate,
-      endDate: filters.endDate
-    };
-    
-    // Add additional filters if defined
-    if (filters.organizationId) apiFilters.organizationId = filters.organizationId;
-    if (filters.ownerId) apiFilters.ownerId = filters.ownerId;
-    if (filters.teamId) apiFilters.teamId = filters.teamId;
-    if (filters.state) apiFilters.state = filters.state;
-    if (filters.type) apiFilters.type = filters.type;
-    
-    apiService.getLevelsSummary(apiFilters)
+    apiService.getLevelsSummary({ startDate: filters.startDate, endDate: filters.endDate })
       .then(res => { if (!cancelled) setData(res); })
       .catch(err => {
         if (!cancelled) setError(typeof err === 'string' ? err : (err?.message || 'Error cargando niveles'));
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [filters?.startDate, filters?.endDate, filters?.organizationId, filters?.ownerId, filters?.teamId, filters?.state, filters?.type]);
+  }, [filters?.startDate, filters?.endDate]);
 
   if (loading) {
     return (

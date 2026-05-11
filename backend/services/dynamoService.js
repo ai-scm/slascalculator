@@ -79,11 +79,15 @@ async function getProjectsMap() {
 async function getAllTeams() {
   if (_teamsCache && Date.now() < _teamsExpiry) return _teamsCache;
 
+  try {
     const result = await dynamodb.scan({ TableName: TABLES.TEAMS }).promise();
     _teamsCache = result.Items || [];
     _teamsExpiry = Date.now() + CACHE_TTL_MS;
     return _teamsCache;
-
+  } catch (error) {
+    console.warn('⚠️ [TEAMS] DynamoDB error (fallback a array vacío):', error.message);
+    return [];
+  }
 }
 
 async function getTeam(id) {
