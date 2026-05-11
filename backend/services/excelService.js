@@ -10,19 +10,21 @@ class ExcelService {
     workbook.creator = 'Service Center SLA Reporter';
     workbook.created = new Date();
     
-    // Hoja 0: Dashboard Gráfico (NUEVA)
-    this.createDashboardSheet(workbook, charts);
+    // Hoja 0: Niveles de Soporte (NUEVA)
+    if (charts?.levelData) {
+      this.createLevelsSheet(workbook, charts.levelData, charts, filters);
+    }
 
     // Hoja 1: Resumen Ejecutivo
     this.createSummarySheet(workbook, metrics, filters);
     
-    // Hoja 2: Detalle de Tickets
+    // Hoja 3: Detalle de Tickets
     this.createTicketsSheet(workbook, tickets);
     
-    // Hoja 3: Métricas por Agente
+    // Hoja 4: Métricas por Agente
     this.createAgentMetricsSheet(workbook, metrics.by_agent);
     
-    // Hoja 4: Métricas por Organización/Proyecto
+    // Hoja 5: Métricas por Organización/Proyecto
     this.createOrganizationMetricsSheet(workbook, metrics.by_organization);
     
     return workbook;
@@ -38,83 +40,178 @@ class ExcelService {
     return workbook;
   }
 
-  createDashboardSheet(workbook, charts) {
-    // Si no hay gráficas, no crear la hoja
-    if (!charts || Object.keys(charts).length === 0) {
-      return;
-    }
+  createLevelsSheet(workbook, levelData, charts = {}, filters) {
+    const sheet = workbook.addWorksheet('Niveles de Soporte', { views: [{ showGridLines: false, zoomScale: 85 }] });
 
-    const sheet = workbook.addWorksheet('Dashboard Gráfico', { views: [{ showGridLines: false, zoomScale: 85 }] });
-
-    // Título del Dashboard
-    sheet.mergeCells('A1:O1');
+    // ========== TÍTULO ==========
+    sheet.mergeCells('A1:H1');
     const titleCell = sheet.getCell('A1');
-    titleCell.value = 'DASHBOARD OPERATIVO - ZAMMAD SLA';
+    titleCell.value = 'ANÁLISIS DE NIVELES DE SOPORTE (N1/N2)';
     titleCell.font = { size: 18, bold: true, color: { argb: 'FFFFFFFF' } };
     titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0066CC' } };
     titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
-    sheet.getRow(1).height = 40;
+    sheet.getRow(1).height = 35;
 
-    // Función auxiliar para añadir imagen
-    const addChartImage = (key, col, row, width, height) => {
+    // ========== PERÍODO ==========
+    sheet.mergeCells('A2:H2');
+    const periodCell = sheet.getCell('A2');
+    periodCell.value = filters.startDate && filters.endDate 
+      ? `Período: ${moment(filters.startDate).format('DD/MM/YYYY')} - ${moment(filters.endDate).format('DD/MM/YYYY')}`
+      : 'Todos los datos';
+    periodCell.font = { size: 11, color: { argb: 'FF666666' } };
+    periodCell.alignment = { horizontal: 'center' };
+
+    // ========== MÉTRICAS EN CARDS (FILA 3) ==========
+    let row = 3;
+    
+    const addMetricCard = (col, title, value, bgColor) => {
+      sheet.mergeCells(`${String.fromCharCode(65 + col)}${row}:${String.fromCharCode(65 + col + 1)}${row}`);
+      const titleCell = sheet.getCell(`${String.fromCharCode(65 + col)}${row}`);
+      titleCell.value = title;
+      titleCell.font = { size: 9, color: { argb: 'FF999999' }, bold: true };
+      titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } };
+      titleCell.alignment = { horizontal: 'center', vertical: 'top' };
+      sheet.getRow(row).height = 20;
+
+      const valueCell = sheet.getCell(`${String.fromCharCode(65 + col)}${row + 1}`);
+      valueCell.value = value;
+      valueCell.font = { size: 24, bold: true, color: { argb: 'FF1F2937' } };
+      valueCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } };
+      valueCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      sheet.getRow(row + 1).height = 35;
+    };
+
+    const bgLight = 'FFFAFAFA';
+    addMetricCard(0, 'Total Tickets', levelData.totalTickets || 0, bgLight);
+    addMetricCard(2, 'Atendidos N1', levelData.byLevel?.n1?.handled || 0, 'FF38BDF8');
+    addMetricCard(4, 'Atendidos N2', levelData.byLevel?.n2?.handled || 0, 'FFF97316');
+    
+    const escalationRate = levelData.escalation?.escalationRate 
+      ? `${(levelData.escalation.escalationRate * 100).toFixed(1)}%`
+      : '0%';
+    addMetricCard(6, 'Tasa Escalamiento', escalationRate, 'FFFBBF24');
+
+    // ========== GRÁFICOS (FILA 5+) ==========
+    row = 6;
+    let currentCol = 0;
+
+    const addChartImage = (key, col, row, width, height, label) => {
       if (charts[key]) {
-        // Eliminar el prefijo data:image/png;base64, para obtener solo los datos
+        // Eliminar prefijo base64
         const base64Data = charts[key].replace(/^data:image\/\w+;base64,/, "");
         
-        // Validar que la imagen tenga contenido real (una imagen vacía "data:," tiene longitud 0 tras el replace o muy corta)
-        if (base64Data.length < 100) {
-          console.log(`      ⚠️ ADVERTENCIA: La imagen "${key}" parece vacía o corrupta (longitud: ${base64Data.length}). Se omite.`);
-          return;
+        if (base64Data.length >= 100) {
+          const imageId = workbook.addImage({
+            base64: base64Data,
+            extension: 'png',
+          });
+
+          // Etiqueta
+          sheet.mergeCells(`${String.fromCharCode(65 + col)}${row}:${String.fromCharCode(65 + col + 3)}${row}`);
+          const labelCell = sheet.getCell(`${String.fromCharCode(65 + col)}${row}`);
+          labelCell.value = label;
+          labelCell.font = { size: 11, bold: true, color: { argb: 'FF1F2937' } };
+          labelCell.alignment = { horizontal: 'left' };
+
+          // Imagen
+          sheet.addImage(imageId, {
+            tl: { col: col, row: row + 1 },
+            ext: { width: width, height: height }
+          });
+
+          return true;
         }
-
-        const imageId = workbook.addImage({
-          base64: base64Data,
-          extension: 'png',
-        });
-
-        sheet.addImage(imageId, {
-          tl: { col: col, row: row },
-          ext: { width: width, height: height }
-        });
       }
+      return false;
     };
 
-    // --- FILA 1 DE GRÁFICAS ---
-    
-    // 1. Cumplimiento SLA (A3)
-    addChartImage('sla', 0, 2, 500, 300);
+    // Gráfico 1: Atendidos por Nivel (Izquierda)
+    const chart1Height = addChartImage('levelAttendance', 0, row, 500, 280, 'Tickets Atendidos por Nivel') ? 16 : 0;
 
-    // 2. Estado Tickets (F3) - Un poco más a la derecha
-    addChartImage('status', 6, 2, 400, 300);
+    // Gráfico 2: Embudo (Centro)
+    const chart2Height = addChartImage('levelFunnel', 4, row, 500, 280, 'Embudo de Escalamiento') ? 16 : 0;
 
-    // 3. Top Agentes (K3)
-    addChartImage('agent', 11, 2, 500, 300);
+    row += Math.max(chart1Height, chart2Height, 16);
 
-    // --- FILA 2 DE GRÁFICAS ---
+    // Gráfico 3: Top Escaladores (Ancho completo)
+    const chart3Height = addChartImage('levelEscalators', 0, row, 800, 300, 'Top Agentes que Escalaron a N2') ? 18 : 0;
 
-    // 4. Resumen por Tipos (A18) - Ancho completo
-    addChartImage('types', 0, 17, 900, 350);
+    row += chart3Height;
 
-    // --- FILA 3 DE GRÁFICAS (Detalles) ---
+    // ========== ESTADÍSTICAS DE TIEMPO (FILA FINAL) ==========
+    row += 2;
 
-    // 5. Incidentes (A36)
-    addChartImage('incident', 0, 35, 400, 300);
+    sheet.mergeCells(`A${row}:H${row}`);
+    const timeTitle = sheet.getCell(`A${row}`);
+    timeTitle.value = 'ESTADÍSTICAS DE TIEMPO POR NIVEL';
+    timeTitle.font = { size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
+    timeTitle.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0066CC' } };
+    timeTitle.alignment = { horizontal: 'left' };
+    sheet.getRow(row).height = 20;
 
-    // 6. RFC (E36)
-    addChartImage('rfc', 6, 35, 400, 300);
+    row++;
 
-    // 7. RFI (I36)
-    addChartImage('rfi', 12, 35, 400, 300);
+    // Tabla de tiempos N1
+    const timeHeaders = ['Métrica', 'Promedio', 'Mediana (p50)', 'P95'];
+    const startRow = row;
+    timeHeaders.forEach((header, idx) => {
+      const cell = sheet.getCell(`${String.fromCharCode(65 + idx)}${row}`);
+      cell.value = header;
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF6366F1' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    });
+    sheet.getRow(row).height = 22;
 
-    // Añadir etiquetas de texto simples sobre las secciones (opcional)
-    const setSectionTitle = (cellRef, text) => {
-      const cell = sheet.getCell(cellRef);
-      cell.value = text;
-      cell.font = { size: 14, bold: true, color: { argb: 'FF333333' } };
-    };
+    row++;
 
-    // Ajustar un poco el ancho de las columnas base para que no se vea tan comprimido si no cargan las imágenes
-    sheet.columns.forEach(col => { col.width = 10; });
+    // N1 row
+    sheet.getCell(`A${row}`).value = 'Nivel 1';
+    sheet.getCell(`A${row}`).font = { bold: true };
+    sheet.getCell(`B${row}`).value = levelData.timeStats?.n1?.avgHours ? `${levelData.timeStats.n1.avgHours.toFixed(1)} h` : 'N/A';
+    sheet.getCell(`C${row}`).value = levelData.timeStats?.n1?.medianHours ? `${levelData.timeStats.n1.medianHours.toFixed(1)} h` : 'N/A';
+    sheet.getCell(`D${row}`).value = levelData.timeStats?.n1?.p95Hours ? `${levelData.timeStats.n1.p95Hours.toFixed(1)} h` : 'N/A';
+    sheet.getRow(row).height = 20;
+
+    // Centrar valores
+    for (let i = 1; i < 4; i++) {
+      sheet.getCell(`${String.fromCharCode(65 + i)}${row}`).alignment = { horizontal: 'center' };
+    }
+
+    row++;
+
+    // N2 row
+    sheet.getCell(`A${row}`).value = 'Nivel 2';
+    sheet.getCell(`A${row}`).font = { bold: true };
+    sheet.getCell(`B${row}`).value = levelData.timeStats?.n2?.avgHours ? `${levelData.timeStats.n2.avgHours.toFixed(1)} h` : 'N/A';
+    sheet.getCell(`C${row}`).value = levelData.timeStats?.n2?.medianHours ? `${levelData.timeStats.n2.medianHours.toFixed(1)} h` : 'N/A';
+    sheet.getCell(`D${row}`).value = levelData.timeStats?.n2?.p95Hours ? `${levelData.timeStats.n2.p95Hours.toFixed(1)} h` : 'N/A';
+    sheet.getRow(row).height = 20;
+
+    // Centrar valores
+    for (let i = 1; i < 4; i++) {
+      sheet.getCell(`${String.fromCharCode(65 + i)}${row}`).alignment = { horizontal: 'center' };
+    }
+
+    // Colores para filas alternadas
+    for (let rowIdx = startRow + 1; rowIdx <= row; rowIdx++) {
+      const bgColor = (rowIdx - startRow - 1) % 2 === 0 ? 'FFFAFAFA' : 'FFFFFFFF';
+      for (let colIdx = 0; colIdx < 4; colIdx++) {
+        sheet.getCell(`${String.fromCharCode(65 + colIdx)}${rowIdx}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } };
+      }
+    }
+
+    // Anchos de columna
+    sheet.columns = [
+      { width: 18 },
+      { width: 16 },
+      { width: 18 },
+      { width: 16 },
+      { width: 18 },
+      { width: 18 },
+      { width: 18 },
+      { width: 18 }
+    ];
   }
 
   createSummarySheet(workbook, metrics, filters) {
