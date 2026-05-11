@@ -9,6 +9,13 @@ function _key(filters) {
   return JSON.stringify({
     startDate: filters.startDate || null,
     endDate:   filters.endDate   || null,
+    organizationId: filters.organizationId || null,
+    ownerId: filters.ownerId || null,
+    teamId: filters.teamId || null,
+    state: filters.state || null,
+    type: filters.type || null,
+    page: filters.page || 1,
+    pageSize: filters.pageSize || 10
   });
 }
 
@@ -86,7 +93,7 @@ async function getSummary(filters = {}) {
     return cached;
   }
 
-  const { startDate, endDate } = filters;
+  const { startDate, endDate, organizationId, ownerId, teamId, state, type, page = 1, pageSize = 10 } = filters;
   if (!startDate || !endDate) {
     throw new Error('startDate y endDate son requeridos');
   }
@@ -96,33 +103,105 @@ async function getSummary(filters = {}) {
 
   const client = await pool.connect();
   try {
-    const ticketsRes = await client.query(
-      `SELECT id, owner_id, created_at, close_at
-       FROM tickets
-       WHERE created_at >= $1 AND created_at < ($2::timestamp + interval '1 day')
-         AND owner_id IS NOT NULL
-         AND owner_id != 1`,
-      [startDate, endDate]
-    );
+    // Build tickets query with all filters
+    let ticketsQuery = `
+      SELECT t.id, t.owner_id, t.created_at, t.close_at, o.name as organization_name
+      FROM tickets t
+      LEFT JOIN organizations o ON t.organization_id = o.id
+      LEFT JOIN ticket_states ts ON t.state_id = ts.id
+      WHERE t.created_at >= $1 AND t.created_at < ($2::timestamp + interval '1 day')
+        AND t.owner_id IS NOT NULL
+        AND t.owner_id != 1`;
+    
+    const params = [startDate, endDate];
+    let paramCount = 3;
+    let teamAgentIds = [];
 
+    // Apply additional filters
+    if (organizationId) {
+      ticketsQuery += ` AND t.organization_id = $${paramCount}`;
+      params.push(organizationId);
+      paramCount++;
+    }
+    if (ownerId) {
+      ticketsQuery += ` AND t.owner_id = $${paramCount}`;
+      params.push(ownerId);
+      paramCount++;
+    }
+    if (state) {
+      ticketsQuery += ` AND ts.name = $${paramCount}`;
+      params.push(state);
+      paramCount++;
+    }
+    if (type) {
+      ticketsQuery += ` AND t.type = $${paramCount}`;
+      params.push(type);
+      paramCount++;
+    }
+    // Team filter - get agents from DynamoDB
+    if (teamId) {
+      const team = await dynamoService.getTeam(teamId);
+      if (team && team.agent_ids && team.agent_ids.length > 0) {
+        teamAgentIds = team.agent_ids.map(id => Number(id));
+        const placeholders = teamAgentIds.map((_, i) => `$${paramCount + i}`).join(', ');
+        ticketsQuery += ` AND t.owner_id IN (${placeholders})`;
+        params.push(...teamAgentIds);
+        paramCount += teamAgentIds.length;
+      }
+    }
+
+    const ticketsRes = await client.query(ticketsQuery, params);
+
+    // Build history query with same filters
     let historyRes = { rows: [] };
     if (knownAgentIds.length > 0) {
-      historyRes = await client.query(
-        `SELECT
-           h.o_id        AS ticket_id,
-           h.id_from     AS prev_owner,
-           h.id_to       AS new_owner,
-           h.created_at  AS changed_at,
-           h.created_by_id AS changed_by
-         FROM histories h
-         JOIN history_attributes ha ON ha.id = h.history_attribute_id
-         JOIN tickets t             ON t.id = h.o_id
-         WHERE ha.name = 'owner'
-           AND t.created_at >= $1
-           AND t.created_at < ($2::timestamp + interval '1 day')
-         ORDER BY h.o_id, h.created_at`,
-        [startDate, endDate]
-      );
+      let historyQuery = `
+        SELECT
+          h.o_id        AS ticket_id,
+          h.id_from     AS prev_owner,
+          h.id_to       AS new_owner,
+          h.created_at  AS changed_at,
+          h.created_by_id AS changed_by
+        FROM histories h
+        JOIN history_attributes ha ON ha.id = h.history_attribute_id
+        JOIN tickets t             ON t.id = h.o_id
+        LEFT JOIN organizations o ON t.organization_id = o.id
+        LEFT JOIN ticket_states ts ON t.state_id = ts.id
+        WHERE ha.name = 'owner'
+          AND t.created_at >= $1
+          AND t.created_at < ($2::timestamp + interval '1 day')`;
+      
+      const historyParams = [startDate, endDate];
+      let historyParamCount = 3;
+
+      if (organizationId) {
+        historyQuery += ` AND t.organization_id = $${historyParamCount}`;
+        historyParams.push(organizationId);
+        historyParamCount++;
+      }
+      if (ownerId) {
+        historyQuery += ` AND t.owner_id = $${historyParamCount}`;
+        historyParams.push(ownerId);
+        historyParamCount++;
+      }
+      if (state) {
+        historyQuery += ` AND ts.name = $${historyParamCount}`;
+        historyParams.push(state);
+        historyParamCount++;
+      }
+      if (type) {
+        historyQuery += ` AND t.type = $${historyParamCount}`;
+        historyParams.push(type);
+        historyParamCount++;
+      }
+      if (teamAgentIds.length > 0) {
+        const placeholders = teamAgentIds.map((_, i) => `$${historyParamCount + i}`).join(', ');
+        historyQuery += ` AND t.owner_id IN (${placeholders})`;
+        historyParams.push(...teamAgentIds);
+      }
+
+      historyQuery += ` ORDER BY h.o_id, h.created_at`;
+      historyRes = await client.query(historyQuery, historyParams);
     }
     client.release();
 
@@ -137,12 +216,18 @@ async function getSummary(filters = {}) {
     let escalated = 0;
     const timesN1 = [], timesN2 = [];
     const escalators = {};
+    const organizationsN2 = {};
     const now = new Date();
 
     for (const ticket of tickets) {
       const currentLevel = agentToLevel[ticket.owner_id];
       if (currentLevel === 'n1') n1Handled++;
-      else if (currentLevel === 'n2') n2Handled++;
+      else if (currentLevel === 'n2') {
+        n2Handled++;
+        // Count tickets by organization for N2 level
+        const orgName = ticket.organization_name || 'Sin Organización';
+        organizationsN2[orgName] = (organizationsN2[orgName] || 0) + 1;
+      }
 
       const changes = changesByTicket[ticket.id] || [];
 
@@ -192,7 +277,30 @@ async function getSummary(filters = {}) {
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
 
+    // Top organizations by N2 level with pagination
     const totalTickets = tickets.length;
+    const allOrganizationsN2 = Object.entries(organizationsN2)
+      .map(([name, count]) => ({
+        organizationName: name,
+        ticketCount: count,
+        percentage: n2Handled > 0 ? +((count / n2Handled) * 100).toFixed(2) : 0
+      }))
+      .sort((a, b) => b.ticketCount - a.ticketCount);
+
+    const totalOrganizations = allOrganizationsN2.length;
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const topOrganizationsN2 = allOrganizationsN2.slice(startIndex, endIndex);
+
+    const pagination = {
+      currentPage: page,
+      pageSize: pageSize,
+      totalItems: totalOrganizations,
+      totalPages: Math.ceil(totalOrganizations / pageSize),
+      hasNextPage: page < Math.ceil(totalOrganizations / pageSize),
+      hasPrevPage: page > 1
+    };
+
     const result = {
       range: { from: startDate, to: endDate },
       totalTickets,
@@ -208,6 +316,8 @@ async function getSummary(filters = {}) {
       },
       timeStats: { n1: stats(timesN1), n2: stats(timesN2) },
       topEscalators,
+      topOrganizationsN2,
+      organizationsPagination: pagination,
     };
 
     _cacheSet(filters, result);
@@ -222,7 +332,7 @@ async function getAgentNames(agentIds) {
   if (!agentIds.length) return {};
   const client = await pool.connect();
   try {
-    const ph = agentIds.map((_, i) => `${i + 1}`).join(', ');
+    const ph = agentIds.map((_, i) => `$${i + 1}`).join(', ');
     const res = await client.query(
       `SELECT id, firstname, lastname FROM users WHERE id IN (${ph})`,
       agentIds
