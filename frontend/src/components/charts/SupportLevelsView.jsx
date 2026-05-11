@@ -27,20 +27,38 @@ const SupportLevelsView = ({ filters }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   useEffect(() => {
     if (!filters?.startDate || !filters?.endDate) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
-    apiService.getLevelsSummary({ startDate: filters.startDate, endDate: filters.endDate })
+    
+    // Pass all filters to backend
+    const apiFilters = {
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+      page: currentPage,
+      pageSize: pageSize
+    };
+    
+    // Add additional filters if defined
+    if (filters.organizationId) apiFilters.organizationId = filters.organizationId;
+    if (filters.ownerId) apiFilters.ownerId = filters.ownerId;
+    if (filters.teamId) apiFilters.teamId = filters.teamId;
+    if (filters.state) apiFilters.state = filters.state;
+    if (filters.type) apiFilters.type = filters.type;
+    
+    apiService.getLevelsSummary(apiFilters)
       .then(res => { if (!cancelled) setData(res); })
       .catch(err => {
         if (!cancelled) setError(typeof err === 'string' ? err : (err?.message || 'Error cargando niveles'));
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [filters?.startDate, filters?.endDate]);
+  }, [filters?.startDate, filters?.endDate, filters?.organizationId, filters?.ownerId, filters?.teamId, filters?.state, filters?.type, currentPage]);
 
   if (loading) {
     return (
@@ -133,6 +151,8 @@ const SupportLevelsView = ({ filters }) => {
       y: { grid: { display: false } }
     }
   };
+
+  const totalPages = data.organizationsPagination?.totalPages || 1;
 
   return (
     <div className="space-y-6">
@@ -264,6 +284,104 @@ const SupportLevelsView = ({ filters }) => {
               );
             })}
           </div>
+        </Card>
+      )}
+
+      {data.topOrganizationsN2?.length > 0 && (
+        <Card padding="none">
+          {/* Header */}
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Top organizaciones atendidas por Nivel 2 ({data.organizationsPagination?.totalItems || 0})
+              </h3>
+            </div>
+          </div>
+
+          {/* List */}
+          <div className="p-6 space-y-3">
+            {data.topOrganizationsN2.map((org, idx) => {
+              const max = data.topOrganizationsN2[0].ticketCount;
+              const pct = (org.ticketCount / max) * 100;
+              const globalIndex = ((currentPage - 1) * pageSize) + idx + 1;
+              return (
+                <div key={org.organizationName} className="flex items-center gap-3">
+                  <span className="w-6 text-sm font-semibold text-gray-400">{globalIndex}</span>
+                  <span className="flex-1 text-sm text-slate-900 truncate" title={org.organizationName}>
+                    {org.organizationName}
+                  </span>
+                  <div className="w-32 bg-gray-100 rounded-full h-3 overflow-hidden">
+                    <div
+                      className="h-full bg-orange-500 rounded-full transition-all"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <span className="w-12 text-right text-sm font-semibold text-slate-700">
+                    {org.ticketCount}
+                  </span>
+                  <span className="w-12 text-right text-xs text-gray-500">
+                    {org.percentage}%
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Pagination - Same style as TicketsTable */}
+          {data.organizationsPagination && data.organizationsPagination.totalPages > 1 && (
+            <div className="p-4 border-t border-gray-200 flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                Mostrando {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, data.organizationsPagination.totalItems)} de {data.organizationsPagination.totalItems}
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="btn btn-secondary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Anterior
+                </button>
+
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNumber;
+                    if (totalPages <= 5) {
+                      pageNumber = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNumber = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNumber = totalPages - 4 + i;
+                    } else {
+                      pageNumber = currentPage - 2 + i;
+                    }
+
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => setCurrentPage(pageNumber)}
+                        className={`px-3 py-1 rounded text-sm ${
+                          currentPage === pageNumber
+                            ? 'bg-primary text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        {pageNumber}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="btn btn-secondary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Siguiente
+                </button>
+              </div>
+            </div>
+          )}
         </Card>
       )}
     </div>
