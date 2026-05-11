@@ -28,7 +28,7 @@ const SupportLevelsView = ({ filters }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 10;
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     if (!filters?.startDate || !filters?.endDate) return;
@@ -58,7 +58,7 @@ const SupportLevelsView = ({ filters }) => {
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [filters?.startDate, filters?.endDate, filters?.organizationId, filters?.ownerId, filters?.teamId, filters?.state, filters?.type, currentPage]);
+  }, [filters?.startDate, filters?.endDate, filters?.organizationId, filters?.ownerId, filters?.teamId, filters?.state, filters?.type, currentPage, pageSize]);
 
   if (loading) {
     return (
@@ -260,126 +260,129 @@ const SupportLevelsView = ({ filters }) => {
         </Card>
       </div>
 
-      {data.topEscalators?.length > 0 && (
-        <Card>
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">Top agentes que escalaron a N2</h3>
-          <div className="space-y-3">
-            {data.topEscalators.map((agent, idx) => {
-              const max = data.topEscalators[0].count;
-              const pct = (agent.count / max) * 100;
-              return (
-                <div key={agent.agentId || agent.name} className="flex items-center gap-3">
-                  <span className="w-6 text-sm font-semibold text-gray-400">{idx + 1}</span>
-                  <span className="w-44 text-sm text-slate-900">{agent.name}</span>
-                  <div className="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden">
-                    <div
-                      className="h-full bg-orange-500 rounded-full transition-all"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                  <span className="w-10 text-right text-sm font-semibold text-slate-700">
-                    {agent.count}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      )}
-
       {data.topOrganizationsN2?.length > 0 && (
         <Card padding="none">
           {/* Header */}
           <div className="p-6 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900">
-                Top organizaciones atendidas por Nivel 2 ({data.organizationsPagination?.totalItems || 0})
+                Top organizaciones atendidas por Nivel 2
               </h3>
+
+              {/* Page Size Selector */}
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-600">Mostrar:</label>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="select text-sm py-1"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
             </div>
           </div>
 
-          {/* List */}
-          <div className="p-6 space-y-3">
-            {data.topOrganizationsN2.map((org, idx) => {
-              const max = data.topOrganizationsN2[0].ticketCount;
-              const pct = (org.ticketCount / max) * 100;
-              const globalIndex = ((currentPage - 1) * pageSize) + idx + 1;
-              return (
-                <div key={org.organizationName} className="flex items-center gap-3">
-                  <span className="w-6 text-sm font-semibold text-gray-400">{globalIndex}</span>
-                  <span className="flex-1 text-sm text-slate-900 truncate" title={org.organizationName}>
-                    {org.organizationName}
-                  </span>
-                  <div className="w-32 bg-gray-100 rounded-full h-3 overflow-hidden">
-                    <div
-                      className="h-full bg-orange-500 rounded-full transition-all"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                  <span className="w-12 text-right text-sm font-semibold text-slate-700">
-                    {org.ticketCount}
-                  </span>
-                  <span className="w-12 text-right text-xs text-gray-500">
-                    {org.percentage}%
-                  </span>
-                </div>
-              );
-            })}
+          {/* Table */}
+          <div className="overflow-x-auto">
+            <table className="table">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="w-12">#</th>
+                  <th>Organización</th>
+                  <th className="w-32 text-center">Tickets</th>
+                  <th className="w-24 text-center">Porcentaje</th>
+                  <th className="w-40">Distribución</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.topOrganizationsN2.map((org, idx) => {
+                  const max = data.topOrganizationsN2[0].ticketCount;
+                  const pct = (org.ticketCount / max) * 100;
+                  const globalIndex = ((currentPage - 1) * pageSize) + idx + 1;
+                  return (
+                    <tr key={org.organizationName}>
+                      <td className="text-gray-400 font-medium">{globalIndex}</td>
+                      <td className="font-medium text-slate-900 truncate max-w-xs" title={org.organizationName}>
+                        {org.organizationName}
+                      </td>
+                      <td className="text-center font-semibold text-slate-700">{org.ticketCount}</td>
+                      <td className="text-center text-gray-600">{org.percentage}%</td>
+                      <td>
+                        <div className="bg-gray-100 rounded-full h-3 overflow-hidden">
+                          <div
+                            className="h-full bg-orange-500 rounded-full transition-all"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
 
-          {/* Pagination - Same style as TicketsTable */}
-          {data.organizationsPagination && data.organizationsPagination.totalPages > 1 && (
+          {/* Pagination */}
+          {data.organizationsPagination && (
             <div className="p-4 border-t border-gray-200 flex items-center justify-between">
               <div className="text-sm text-gray-600">
                 Mostrando {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, data.organizationsPagination.totalItems)} de {data.organizationsPagination.totalItems}
               </div>
 
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="btn btn-secondary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Anterior
-                </button>
+              {data.organizationsPagination.totalPages > 1 && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="btn btn-secondary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Anterior
+                  </button>
 
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNumber;
-                    if (totalPages <= 5) {
-                      pageNumber = i + 1;
-                    } else if (currentPage <= 3) {
-                      pageNumber = i + 1;
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNumber = totalPages - 4 + i;
-                    } else {
-                      pageNumber = currentPage - 2 + i;
-                    }
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, data.organizationsPagination.totalPages) }, (_, i) => {
+                      let pageNumber;
+                      if (data.organizationsPagination.totalPages <= 5) {
+                        pageNumber = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNumber = i + 1;
+                      } else if (currentPage >= data.organizationsPagination.totalPages - 2) {
+                        pageNumber = data.organizationsPagination.totalPages - 4 + i;
+                      } else {
+                        pageNumber = currentPage - 2 + i;
+                      }
 
-                    return (
-                      <button
-                        key={i}
-                        onClick={() => setCurrentPage(pageNumber)}
-                        className={`px-3 py-1 rounded text-sm ${
-                          currentPage === pageNumber
-                            ? 'bg-primary text-white'
-                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                        }`}
-                      >
-                        {pageNumber}
-                      </button>
-                    );
-                  })}
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => setCurrentPage(pageNumber)}
+                          className={`px-3 py-1 rounded text-sm ${
+                            currentPage === pageNumber
+                              ? 'bg-primary text-white'
+                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          }`}
+                        >
+                          {pageNumber}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(data.organizationsPagination.totalPages, p + 1))}
+                    disabled={currentPage === data.organizationsPagination.totalPages}
+                    className="btn btn-secondary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Siguiente
+                  </button>
                 </div>
-
-                <button
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className="btn btn-secondary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Siguiente
-                </button>
-              </div>
+              )}
             </div>
           )}
         </Card>
