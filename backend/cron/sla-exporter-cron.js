@@ -12,20 +12,13 @@ let AWS;
 let s3;
 try {
   AWS = require('aws-sdk');
-  const region = process.env.AWS_REGION || 'us-east-1';
-  
-  // Usar RemoteCredentials para IMDSv2
-  const credentials = new AWS.RemoteCredentials({
-    httpOptions: { timeout: 5000 },
-    maxRetries: 3
-  });
-  
-  AWS.config.update({
-    region,
-    credentials
-  });
-  
-  s3 = new AWS.S3();
+  const s3Config = { region: process.env.AWS_REGION || 'us-east-1' };
+  if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
+    s3Config.accessKeyId = process.env.AWS_ACCESS_KEY_ID;
+    s3Config.secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+    if (process.env.AWS_SESSION_TOKEN) s3Config.sessionToken = process.env.AWS_SESSION_TOKEN;
+  }
+  s3 = new AWS.S3(s3Config);
 } catch (e) {
   logger.info('AWS SDK not available - using local storage only');
 }
@@ -343,7 +336,7 @@ async function exportSLAToQuickSight() {
       // 5) Trigger Glue Crawler to update Data Catalog (optional)
       if (process.env.AWS_GLUE_CRAWLER_NAME) {
         try {
-          const glue = new AWS.Glue();
+          const glue = new AWS.Glue({ region: process.env.AWS_REGION || 'us-east-1' });
           await glue.startCrawler({ Name: process.env.AWS_GLUE_CRAWLER_NAME }).promise();
           console.log(`   ✓ Glue Crawler "${process.env.AWS_GLUE_CRAWLER_NAME}" triggered`);
         } catch (glueErr) {
@@ -358,7 +351,7 @@ async function exportSLAToQuickSight() {
       // 6) Trigger QuickSight dataset refresh (optional)
       if (process.env.AWS_QUICKSIGHT_DATASET_ID && process.env.AWS_ACCOUNT_ID) {
         try {
-          const quicksight = new AWS.QuickSight();
+          const quicksight = new AWS.QuickSight({ region: process.env.AWS_REGION || 'us-east-1' });
           const datasetIds = process.env.AWS_QUICKSIGHT_DATASET_ID.split(',').map(id => id.trim());
           
           for (const datasetId of datasetIds) {
