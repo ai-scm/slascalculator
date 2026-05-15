@@ -1,6 +1,6 @@
 # Blend 360 - Reportes SLA para Zammad
 
-Sistema de reportes de Acuerdos de Nivel de Servicio (SLA) para tickets de Zammad. Permite visualizar métricas, cumplimiento de SLA y exportar informes en Excel.
+Sistema de reportes de Acuerdos de Nivel de Servicio (SLA) para tickets de Zammad. Permite visualizar métricas, cumplimiento de SLA, análisis por niveles de soporte (N1/N2) y exportar informes en Excel.
 
 ## Requisitos
 
@@ -12,28 +12,62 @@ Sistema de reportes de Acuerdos de Nivel de Servicio (SLA) para tickets de Zamma
 ## Estructura del proyecto
 
 ```
-zammad-sla-reporter/
+slascalculator/
 ├── backend/                  # API Express (Node.js)
 │   ├── server.js             # Servidor principal
 │   ├── Dockerfile            # Imagen multi-stage: compila frontend + backend
-│   ├── routes/               # Endpoints API
-│   ├── services/             # Lógica de negocio (SLA, Excel, exportación)
-│   ├── cron/                 # Jobs programados (exportación a S3/QuickSight)
-│   ├── middleware/           # Middleware Express
-│   ├── utils/                # Utilidades (logger)
-│   └── config/               # Base de datos, constantes (UTC offset, estados, SLA targets)
-├── frontend/                 # App React (Vite)
-│   ├── src/                  # Código fuente React
-│   │   ├── components/       # Componentes UI reutilizables y de negocio
-│   │   ├── context/          # Estado global (AppContext)
-│   │   ├── pages/            # Páginas de la aplicación
-│   │   └── services/         # Llamadas a la API
+│   ├── routes/
+│   │   ├── api.js            # Endpoints principales (métricas, tickets, reportes)
+│   │   └── admin.js          # CRUD de proyectos y equipos (DynamoDB)
+│   ├── services/
+│   │   ├── slaService.js     # Lógica principal de cálculo SLA
+│   │   ├── levelService.js   # Análisis de niveles de soporte (N1 vs N2)
+│   │   ├── excelService.js   # Generación de reportes Excel
+│   │   ├── chartGeneratorService.js  # Generación de gráficos para Excel
+│   │   ├── workingHoursService.js    # Cálculo de horas laborales/calendario
+│   │   └── dynamoService.js  # Acceso a DynamoDB (proyectos, equipos)
+│   ├── cron/
+│   │   ├── cron-scheduler.js       # Programador de tareas
+│   │   └── sla-exporter-cron.js    # Exportación diaria a S3/QuickSight
+│   ├── scripts/
+│   │   ├── seed-dynamo.js          # Seed de proyectos en DynamoDB
+│   │   ├── seed-teams-from-csv.js  # Seed de equipos desde CSV
+│   │   ├── seed-support-levels.js  # Seed de niveles N1/N2
+│   │   └── support-levels.json     # Definición de agentes por nivel
+│   ├── middleware/            # Validadores Express
+│   ├── utils/                 # Logger
+│   └── config/
+│       ├── database.js        # Pool de conexiones PostgreSQL
+│       ├── dynamodb.js        # Cliente DynamoDB
+│       └── constants.js       # UTC offset, estados, SLA targets
+├── frontend/                 # App React (Vite + Tailwind CSS)
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── common/       # Button, Badge, Card, Input, Select, Toast, etc.
+│   │   │   ├── metrics/      # MetricCard, SLAProgress, CalendarSelector
+│   │   │   ├── filters/      # FilterPanel (fechas, proyecto, agente, estado, tipo, equipo)
+│   │   │   ├── charts/       # SLATrendChart, TicketDistribution, TicketsByState, SupportLevelsView
+│   │   │   ├── tables/       # TicketsTable con paginación y ordenamiento
+│   │   │   └── modals/       # TicketDetailModal, VPNConnectionModal
+│   │   ├── context/          # AppContext (estado global)
+│   │   ├── pages/            # Dashboard.jsx (página principal)
+│   │   └── services/         # api.js (llamadas al backend con manejo de VPN)
 │   └── public/               # Assets estáticos (logo)
-├── .github/workflows/        # CI/CD: build → push a GHCR → deploy en EC2
-├── aws/                      # Scripts de infraestructura AWS (S3, Glue)
-├── docker-compose.yml        # Orquestación de contenedores en producción
-├── .env.example              # Plantilla de variables de entorno
-└── DATABASE_DICTIONARY.md    # Diccionario de la base de datos de Zammad
+├── aws/                      # Infraestructura AWS
+│   ├── cloudformation.yml    # Stack: S3, Glue, IAM
+│   └── deploy-infra.sh       # Script de despliegue de infra
+├── docs/
+│   └── diagrams/             # Diagramas de arquitectura (.drawio)
+│       ├── 01-conexion-red.drawio
+│       ├── 02-arquitectura-software.drawio
+│       ├── 03-arquitectura-hardware.drawio
+│       ├── 04-pipeline-quicksight.drawio
+│       └── 05-Conexion y Red — VPN Site-to-Site.drawio
+├── docker-compose.yml        # Orquestación de contenedores
+├── deploy.sh                 # Script de deploy automatizado
+├── deploy-remote.sh          # Deploy remoto
+├── DATABASE_DICTIONARY.md    # Diccionario de la base de datos de Zammad (124 tablas)
+└── README.md
 ```
 
 ## Desarrollo local
@@ -65,6 +99,9 @@ npm run dev
 |---|---|---|
 | Backend + Frontend | EC2 (Node.js directo) | `10.67.4.151` (IP privada, requiere VPN) |
 | Base de datos | RDS PostgreSQL | Base de datos de Zammad (solo lectura) |
+| Configuración | DynamoDB | Proyectos, equipos y niveles de soporte |
+| Pipeline de datos | S3 + Glue + Athena | Exportación diaria para QuickSight |
+| Dashboards | AWS QuickSight | Visualización ejecutiva de SLAs |
 | Puerto | 443 | Expuesto directamente por Node.js (`sudo setcap` para bind sin root) |
 
 ### Despliegue
@@ -135,8 +172,11 @@ pm2 show sla-reporter
 ### URL de la aplicación
 
 ```
-http://10.67.4.151
+URL para acceso desde fuera de la compañia con VPN ---      http://10.67.4.151
+URL para acceso sin VPN desde la compañia ------------      https://sla.helpdesk.ia.blend360.com/
+URL del alojamiento en el HOUNDOC --------------------      https://app.ia.blend360.com/embedding/bc97b93c-8000-4179-aa96-093b1fcfef87
 ```
+
 Requiere VPN corporativa activa (puerto 443, no es necesario especificarlo en la URL).
 
 ## Calendarios SLA soportados
@@ -147,7 +187,38 @@ Requiere VPN corporativa activa (puerto 443, no es necesario especificarlo en la
 | `continuo` | 8:00–18:00 | 10 h | Lunes a Viernes | No excluidos |
 | `24x7` | 00:00–24:00 | 24 h | Todos los días | No excluidos |
 
-## API — Endpoint principal
+## API — Endpoints
+
+### Endpoints principales
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET` | `/api/projects` | Proyectos disponibles (desde DynamoDB) |
+| `GET` | `/api/teams` | Equipos activos (desde DynamoDB) |
+| `GET` | `/api/agents` | Agentes disponibles (desde Zammad) |
+| `GET` | `/api/ticket-types` | Tipos de ticket |
+| `GET` | `/api/ticket-states` | Estados de ticket |
+| `POST` | `/api/metrics` | Métricas SLA filtradas |
+| `POST` | `/api/tickets` | Tickets con información SLA |
+| `POST` | `/api/tickets-with-durations` | Tickets con duraciones por estado |
+| `GET` | `/api/ticket-history/:number` | Historial detallado de un ticket |
+| `POST` | `/api/levels/summary` | Resumen de niveles de soporte (N1 vs N2) |
+| `POST` | `/api/generate-report` | Generar reporte Excel completo |
+| `POST` | `/api/generate-filtered-report` | Generar reporte Excel filtrado |
+| `POST` | `/api/export/quicksight` | Exportar data aplanada para QuickSight |
+
+### Endpoints de administración
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET` | `/api/admin/projects` | Listar todos los proyectos |
+| `GET` | `/api/admin/projects/:id` | Obtener un proyecto |
+| `PUT` | `/api/admin/projects/:id` | Crear o actualizar proyecto |
+| `DELETE` | `/api/admin/projects/:id` | Eliminar proyecto |
+| `GET` | `/api/admin/teams` | Listar todos los equipos |
+| `GET` | `/api/admin/teams/:id` | Obtener un equipo |
+| `PUT` | `/api/admin/teams/:id` | Crear o actualizar equipo |
+| `DELETE` | `/api/admin/teams/:id` | Eliminar equipo |
 
 ### `POST /api/metrics`
 
@@ -160,13 +231,28 @@ Retorna métricas SLA filtradas.
   "endDate": "2026-02-28",
   "organizationId": 5,
   "ownerId": 10,
+  "teamId": "gerencia-cloud",
   "state": "Abierto",
   "type": "Incidente",
   "calendarType": "laboral"
 }
 ```
 
-## API — Exportación para AWS QuickSight
+### `POST /api/levels/summary`
+
+Retorna análisis de niveles de soporte N1 vs N2: tickets atendidos por nivel, tasa de escalamiento, tiempos promedio, top escaladores y organizaciones por nivel.
+
+**Request Body:**
+```json
+{
+  "startDate": "2026-01-01",
+  "endDate": "2026-02-28",
+  "organizationId": 5,
+  "type": "Incidente",
+  "page": 1,
+  "pageSize": 10
+}
+```
 
 ### `POST /api/export/quicksight`
 
@@ -201,7 +287,7 @@ Retorna toda la data de SLA en formato aplanado (sin objetos anidados), listo pa
         "ticket_number": "1001",
         "title": "No puedo acceder al sistema",
         "type": "Incidente",
-        "state": "Cerrado",Agregar:
+        "state": "Cerrado",
         "priority": "Media",
         "organization": "[P2068] UNA - Contrato 4",
         "empresa": "Universidad Nacional",
@@ -235,25 +321,25 @@ Retorna toda la data de SLA en formato aplanado (sin objetos anidados), listo pa
 ### Pipeline AWS QuickSight (CRON → S3 → Glue → QuickSight)
 
 ```
-EC2 CRON (diario 7:00 AM)       Glue Crawler (diario 7:30 AM)    QuickSight
+EC2 CRON (6x/día, Lun-Sáb)      Glue Crawler (auto-trigger)      QuickSight ────► Externo (Refresh de dashboard)
        │                                │                              │
        ▼                                ▼                              ▼
-  Zammad DB ──► Parquet ──► S3 ──► Glue Data Catalog ──► Athena ──► SPICE Dataset
-  (PostgreSQL)   (3 tablas)   │         (auto-discover)              (auto-refresh)
-                              │
-                              └── sla-data/
-                                    ├── tickets/data.parquet
-                                    ├── ticket_timelines/data.parquet
-                                    └── tickets_full/data.parquet
+ Zammad DB ──► Parquet ──► S3 ──► Glue Data Catalog ──► Athena ──► SPICE Dataset
+ (PostgreSQL)   (3 tablas)   │         (auto-discover)              (auto-refresh)
+                             │
+                             └── sla-data/
+                                   ├── tickets/data.parquet
+                                   └── tickets_full/data.parquet
 ```
 
 **Características del pipeline:**
 
-- Exportación automática diaria a las 8:00 AM Colombia (`0 8 * * *`)
-- Ejecución inicial al arrancar el servidor
+- 6 exportaciones diarias: 06:00, 09:00, 12:00, 15:00, 18:00 y 22:00 (hora Colombia)
+- Activo de lunes a sábado (`1-6`), sin ejecución los domingos
+- Ejecución inicial automática al arrancar el servidor
+- El Glue Crawler se dispara automáticamente después de cada exportación (no tiene horario propio independiente)
 - Conversión de fechas a formato ISO 8601 para compatibilidad con QuickSight
 - Limpieza automática de archivos locales después de subir a S3
-- Trigger automático del Glue Crawler después de cada exportación
 - Refresh automático de datasets de QuickSight (si está configurado con `AWS_QUICKSIGHT_DATASET_ID`)
 
 **Tablas en Glue Data Catalog:**
@@ -277,12 +363,12 @@ EC2 CRON (diario 7:00 AM)       Glue Crawler (diario 7:30 AM)    QuickSight
 | Servicio | Costo/mes |
 |---|---|
 | S3 (storage ~50MB + PUTs) | ~$0.01 |
-| Glue Crawler (1 run/día x 30 días) | ~$0.30 |
+| Glue Crawler (6 runs/día x 30 días) | ~$1.80 |
 | Glue Data Catalog (3 tablas) | $0.00 (free tier) |
 | QuickSight Author (1 usuario) | $12-24 |
-| **Total** | **~$12-25** |
+| **Total** | **~$14-26** |
 
-**Nota sobre costos:** El CRON se ejecuta 1 vez al día (8:00 AM Colombia), lo que mantiene los costos de infraestructura AWS muy bajos (~$0.30/mes en Glue Crawler).
+**Nota sobre costos:** El CRON se ejecuta 6 veces al día (06:00, 09:00, 12:00, 15:00, 18:00, 22:00 Colombia, de Lunes a Sábado), lo que representa aproximadamente $1.80/mes en Glue Crawler (6 ejecuciones × 30 días × $0.30 por ejecución).
 
 ### Desplegar infraestructura AWS
 
@@ -314,25 +400,32 @@ node -e "require('./cron/sla-exporter-cron').exportSLAToQuickSight().then(consol
 #
 # 7. Configurar auto-refresh en QuickSight:
 #    - Agregar AWS_QUICKSIGHT_DATASET_ID (separar con coma si son varios) y AWS_ACCOUNT_ID al .env
-#    - El CRON disparará automáticamente el refresh diariamente a las 8:00 AM después de cada exportación
+#    - El CRON disparará automáticamente el refresh de QuickSight después de cada exportación
 #    - Asegurarse de que el rol IAM tenga permisos quicksight:CreateIngestion
+```
+
+### Análisis del Dashboard de QuickSight
+
+La documentación detallada del dashboard de QuickSight (datasets, visualizaciones, campos calculados, filtros y observaciones) se encuentra en:
+
+```
+docs/Analisis_Dashboard_SLA_Calculator.md
 ```
 
 ## DynamoDB — Configuración de proyectos y equipos
 
-La aplicación usa DynamoDB para almacenar la configuración de proyectos y equipos. Esto permite modificar calendarios SLA, reglas de SLA y mapeos de agentes sin tocar el código.
+La aplicación usa DynamoDB para almacenar la configuración de proyectos, equipos y niveles de soporte. Esto permite modificar calendarios SLA, reglas de SLA y mapeos de agentes sin tocar el código.
 
 ### Tablas
 
 | Tabla | Descripción |
 |---|---|
 | `sla-reporter-projects` | Proyectos/clientes con su calendario SLA y reglas de cumplimiento |
-| `sla-reporter-teams` | Equipos con los IDs de agentes que los componen |
+| `sla-reporter-teams` | Equipos con los IDs de agentes que los componen (incluye gerencias, áreas y niveles N1/N2) |
 
 ### Autenticación AWS
 
 - **En EC2:** se usa el IAM Instance Profile (`nuv-prod-ai-servicecenterEC2Role`). No se necesitan credenciales en el `.env`. Las credenciales se renuevan automáticamente sin expiración.
-- **En local:** se requieren credenciales válidas en `~/.aws/credentials` o variables de entorno `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`. Las credenciales temporales de SSO expiran cada pocas horas.
 
 **Permisos del rol IAM en EC2:**
 
@@ -393,50 +486,6 @@ Cuando se procesa un ticket, el sistema:
 
 Si el proyecto no existe en DynamoDB, hace fallback a los valores hardcodeados en `slaService.js`.
 
-### Cargar / actualizar proyectos
-
-Desde la EC2 (tiene permisos automáticos vía Instance Profile):
-
-```bash
-cd /home/ec2-user/slascalculator/backend
-node scripts/seed-dynamo.js
-```
-
-Esto crea o sobreescribe los 26 proyectos en la tabla `sla-reporter-projects`.
-
-### Modificar un proyecto específico
-
-Para cambiar el calendario o las reglas SLA de un proyecto sin re-seedear todo, edita directamente en la consola de AWS:
-
-1. Ir a **DynamoDB → Tables → sla-reporter-projects → Explore items**
-2. Buscar el item por `id` (ej. `"1"` para Policía Nacional)
-3. Editar los campos `calendar_type` o `sla_targets` y guardar
-
-O via AWS CLI desde la EC2:
-
-```bash
-aws dynamodb update-item \
-  --table-name sla-reporter-projects \
-  --key '{"id": {"S": "1"}}' \
-  --update-expression "SET calendar_type = :ct" \
-  --expression-attribute-values '{":ct": {"S": "24x7"}}' \
-  --region us-east-1
-```
-
-### Calendarios disponibles por proyecto
-
-| `calendar_type` | Horario | Días | Festivos |
-|---|---|---|---|
-| `laboral` | 8:00–17:00 | Lun–Vie | Excluidos |
-| `continuo` | 8:00–18:00 | Lun–Vie | No excluidos |
-| `24x7` | 00:00–24:00 | Todos | No excluidos |
-
-**Configuración actual:**
-
-| Proyecto | Calendario |
-|---|---|
-| Policía Nacional | `24x7` |
-| Todos los demás | `laboral` |
 
 ### Equipos (teams)
 
@@ -450,6 +499,17 @@ node scripts/seed-teams-from-csv.js ruta/al/archivo.csv
 Carga automáticamente equipos de tipo `gerencia` (ID: `gerencia-{slug}`) y `area` (ID: `area-{slug}`), excluyendo ex-empleados.
 
 Un agente puede pertenecer a múltiples equipos (su área y su gerencia). El filtro por equipo en el frontend usa los `agent_ids` del equipo directamente para manejar esto correctamente.
+
+### Niveles de soporte (N1 / N2)
+
+Los niveles de soporte se definen en `backend/scripts/support-levels.json` y se cargan a DynamoDB como registros de tipo `level` en la tabla `sla-reporter-teams`.
+
+```bash
+cd /home/ec2-user/slascalculator/backend
+node scripts/seed-support-levels.js
+```
+
+Esto crea los registros `level-n1` y `level-n2` con los `agent_ids` resueltos a partir de los emails en `support-levels.json`. El `levelService.js` usa estos registros para calcular métricas de atención por nivel, tasas de escalamiento y tiempos promedio.
 
 ---
 
@@ -470,6 +530,8 @@ Un agente puede pertenecer a múltiples equipos (su área y su gerencia). El fil
 | `AWS_S3_PREFIX` | Prefijo S3 de los datos | `sla-data` |
 | `AWS_REGION` | Región AWS | `us-east-1` |
 | `AWS_GLUE_CRAWLER_NAME` | Nombre del Glue Crawler | `zammad-sla-reporter-crawler-latest-prod` |
+| `AWS_QUICKSIGHT_DATASET_ID` | ID(s) de dataset QuickSight (separar con coma) | `ae663899-2bc4-...` |
+| `AWS_ACCOUNT_ID` | ID de cuenta AWS | `874641912777` |
 | `DYNAMO_PROJECTS_TABLE` | Tabla DynamoDB de proyectos | `sla-reporter-projects` |
 | `DYNAMO_TEAMS_TABLE` | Tabla DynamoDB de equipos | `sla-reporter-teams` |
 
@@ -477,8 +539,184 @@ Un agente puede pertenecer a múltiples equipos (su área y su gerencia). El fil
 - En EC2: Se usa el IAM Instance Profile (`nuv-prod-ai-servicecenterEC2Role`) automáticamente. No se necesitan credenciales en el `.env`.
 - En local: Se requieren credenciales válidas en `~/.aws/credentials` o variables de entorno `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` (para SSO).
 
+## Documentación adicional
+
+| Documento | Descripción |
+|---|---|
+| `DATABASE_DICTIONARY.md` | Diccionario completo de la base de datos de Zammad (124 tablas) |
+| `docs/Analisis_Dashboard_SLA_Calculator.md` | Análisis del dashboard de QuickSight (datasets, campos calculados, filtros) |
+| `frontend/src/components/README_COMPONENTS.md` | Documentación de componentes React |
+| `docs/diagrams/` | Diagramas de arquitectura en formato .drawio |
+
 ## Repositorio
 
 ```
-https://github.com/mapube16/slascalculator.git
+https://github.com/ai-scm/slascalculator.git
 ```
+
+---
+
+## Cambios Realizados por el Semillero
+
+### Lina Rubio
+
+#### 1. Filtro Incidente por Defecto y Filtros en Niveles
+
+Se modificó el panel de filtros para que el tipo "Incidente" esté seleccionado por defecto, y el apartado de niveles de soporte también se vea afectado por los filtros aplicados.
+
+**Archivos modificados:**
+- `frontend/src/components/filters/FilterPanel.jsx`
+- `frontend/src/components/charts/SupportLevelsView.jsx`
+- `backend/services/levelService.js`
+
+**Implementación:**
+```javascript
+// FilterPanel.jsx - Valor por defecto
+const [selectedType, setSelectedType] = useState('Incidente');
+
+// SupportLevelsView.jsx - Filtros aplicados
+const apiFilters = {
+  startDate: filters.startDate,
+  endDate: filters.endDate,
+  type: filters.type || 'Incidente'  // Por defecto Incidente
+};
+```
+
+#### 2. Top Organizaciones en Lugar de Top Agentes
+
+Se modificó la vista de niveles de soporte para mostrar "Top organizaciones atendidas por Nivel 2" en lugar de "Top agentes que escalaron tickets".
+
+**Archivos modificados:**
+- `backend/services/levelService.js`
+- `frontend/src/components/charts/SupportLevelsView.jsx`
+
+**Implementación:**
+```javascript
+// Backend - Conteo por organización
+const organizationsN2 = {};
+for (const ticket of tickets) {
+  const currentLevel = agentToLevel[ticket.owner_id];
+  if (currentLevel === 'n2') {
+    const orgName = ticket.organization_name || 'Sin Organización';
+    organizationsN2[orgName] = (organizationsN2[orgName] || 0) + 1;
+  }
+}
+
+// Frontend - Tabla con paginación
+<Table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Organización</th>
+      <th>Tickets</th>
+      <th>Porcentaje</th>
+      <th>Distribución</th>
+    </tr>
+  </thead>
+  ...
+</Table>
+```
+
+#### 3. KPI de Tiempo de Resolución
+
+Se modificó el KPI de tiempo de resolución para que solo cuente los tickets que:
+1. Estén cerrados
+2. Hayan cumplido el tiempo SLA de resolución
+
+**Archivos modificados:**
+- `backend/services/slaService.js`
+
+**Implementación:**
+```javascript
+// Filtrar solo tickets cerrados que cumplieron SLA
+const resolvedOnTime = tickets.filter(ticket => {
+  return ticket.close_at &&  // Solo cerrados
+         ticket.resolution_sla_met === true;  // Que cumplieron SLA
+});
+
+// Calcular tiempo promedio solo de estos tickets
+const resolutionTimes = resolvedOnTime
+  .map(t => t.resolution_time_minutes)
+  .filter(t => t > 0);
+
+const avgResolutionTime = resolutionTimes.length > 0
+  ? resolutionTimes.reduce((a, b) => a + b, 0) / resolutionTimes.length
+  : 0;
+```
+
+### Eduardo León
+
+#### 1. Limpieza de Datos para DynamoDB
+
+Se limpió y estructuró correctamente la información en DynamoDB para incluir los datos de N1 y N2 para todos los usuarios de la base de datos.
+
+**Archivos modificados:**
+- `backend/scripts/seed-dynamo.js`
+- `backend/services/dynamoService.js`
+
+**Implementación:**
+```javascript
+// seed-dynamo.js - Incluir todos los agentes N1 y N2
+const teams = [
+  { id: 'level-n1', name: 'Nivel 1', agent_ids: allN1AgentIds },
+  { id: 'level-n2', name: 'Nivel 2', agent_ids: allN2AgentIds },
+  // ... otros equipos
+];
+
+// dynamoService.js - Validación defensiva
+if (team && Array.isArray(team.agent_ids) && team.agent_ids.length > 0) {
+  teamAgentIds = team.agent_ids.map(id => Number(id)).filter(id => !isNaN(id));
+}
+```
+
+#### 2. Exportación de Excel con Datos de Niveles
+
+Se modificó la exportación del Excel para que también incluya los datos del apartado de niveles.
+
+**Archivos modificados:**
+- `backend/services/excelService.js`
+
+**Implementación:**
+```javascript
+// excelService.js - Agregar sheet de niveles
+const levelsData = await levelService.getSummary({ startDate, endDate });
+workbook.addSheet('Niveles', [
+  { A: 'Métrica', B: 'Valor' },
+  { A: 'Total Tickets', B: levelsData.totalTickets },
+  { A: 'Tickets N1', B: levelsData.byLevel.n1.handled },
+  { A: 'Tickets N2', B: levelsData.byLevel.n2.handled },
+  { A: 'Tasa de Escalamiento', B: levelsData.escalation.escalationRate },
+  // ... más métricas
+]);
+```
+
+#### 3. Exportación de DynamoDB con Todos los N1 y N2
+
+Se modificó el script de exportación de DynamoDB para incluir todos los agentes de N1 y N2, no solo un subconjunto.
+
+**Archivos modificados:**
+- `backend/scripts/seed-dynamo.js`
+
+**Implementación:**
+```javascript
+// Obtener TODOS los agentes de la base de datos
+const allUsers = await pool.query('SELECT id FROM users WHERE active = true');
+const allN1AgentIds = [];
+const allN2AgentIds = [];
+
+// Clasificar cada usuario según su nivel
+for (const user of allUsers.rows) {
+  const level = agentToLevel[user.id];
+  if (level === 'n1') allN1AgentIds.push(user.id);
+  else if (level === 'n2') allN2AgentIds.push(user.id);
+}
+```
+
+---
+
+## Resumen de Cambios por Autor
+
+| Autor | Cambios |
+|-------|---------|
+| **Lina Rubio** | Filtro Incidente por defecto, filtros en niveles, Top Organizaciones en lugar de Top Agentes, KPI tiempo resolución solo tickets cerrados |
+| **Eduardo León** | Limpieza de datos DynamoDB, exportación Excel con datos de niveles, inclusión de todos los N1/N2 en DynamoDB |
