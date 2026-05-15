@@ -10,22 +10,22 @@ class ExcelService {
     workbook.creator = 'Service Center SLA Reporter';
     workbook.created = new Date();
     
-    // Hoja 0: Niveles de Soporte (NUEVA)
-    if (charts?.levelData) {
-      this.createLevelsSheet(workbook, charts.levelData, charts, filters);
-    }
-
     // Hoja 1: Resumen Ejecutivo
     this.createSummarySheet(workbook, metrics, filters);
     
-    // Hoja 3: Detalle de Tickets
+    // Hoja 2: Detalle de Tickets
     this.createTicketsSheet(workbook, tickets);
     
-    // Hoja 4: Métricas por Agente
+    // Hoja 3: Métricas por Agente
     this.createAgentMetricsSheet(workbook, metrics.by_agent);
     
-    // Hoja 5: Métricas por Organización/Proyecto
+    // Hoja 4: Métricas por Organización/Proyecto
     this.createOrganizationMetricsSheet(workbook, metrics.by_organization);
+
+    // Hoja 5: Niveles de Soporte (última)
+    if (charts?.levelData) {
+      this.createLevelsSheet(workbook, charts.levelData, charts, filters);
+    }
     
     return workbook;
   }
@@ -41,177 +41,215 @@ class ExcelService {
   }
 
   createLevelsSheet(workbook, levelData, charts = {}, filters) {
-    const sheet = workbook.addWorksheet('Niveles de Soporte', { views: [{ showGridLines: false, zoomScale: 85 }] });
-
-    // ========== TÍTULO ==========
-    sheet.mergeCells('A1:H1');
-    const titleCell = sheet.getCell('A1');
-    titleCell.value = 'ANÁLISIS DE NIVELES DE SOPORTE (N1/N2)';
-    titleCell.font = { size: 18, bold: true, color: { argb: 'FFFFFFFF' } };
-    titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0066CC' } };
-    titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
-    sheet.getRow(1).height = 35;
-
-    // ========== PERÍODO ==========
-    sheet.mergeCells('A2:H2');
-    const periodCell = sheet.getCell('A2');
-    periodCell.value = filters.startDate && filters.endDate 
-      ? `Período: ${moment(filters.startDate).format('DD/MM/YYYY')} - ${moment(filters.endDate).format('DD/MM/YYYY')}`
-      : 'Todos los datos';
-    periodCell.font = { size: 11, color: { argb: 'FF666666' } };
-    periodCell.alignment = { horizontal: 'center' };
-
-    // ========== MÉTRICAS EN CARDS (FILA 3) ==========
-    let row = 3;
-    
-    const addMetricCard = (col, title, value, bgColor) => {
-      sheet.mergeCells(`${String.fromCharCode(65 + col)}${row}:${String.fromCharCode(65 + col + 1)}${row}`);
-      const titleCell = sheet.getCell(`${String.fromCharCode(65 + col)}${row}`);
-      titleCell.value = title;
-      titleCell.font = { size: 9, color: { argb: 'FF999999' }, bold: true };
-      titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } };
-      titleCell.alignment = { horizontal: 'center', vertical: 'top' };
-      sheet.getRow(row).height = 20;
-
-      const valueCell = sheet.getCell(`${String.fromCharCode(65 + col)}${row + 1}`);
-      valueCell.value = value;
-      valueCell.font = { size: 24, bold: true, color: { argb: 'FF1F2937' } };
-      valueCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } };
-      valueCell.alignment = { horizontal: 'center', vertical: 'middle' };
-      sheet.getRow(row + 1).height = 35;
-    };
-
-    const bgLight = 'FFFAFAFA';
-    addMetricCard(0, 'Total Tickets', levelData.totalTickets || 0, bgLight);
-    addMetricCard(2, 'Atendidos N1', levelData.byLevel?.n1?.handled || 0, 'FF38BDF8');
-    addMetricCard(4, 'Atendidos N2', levelData.byLevel?.n2?.handled || 0, 'FFF97316');
-    
-    const escalationRate = levelData.escalation?.escalationRate 
-      ? `${(levelData.escalation.escalationRate * 100).toFixed(1)}%`
-      : '0%';
-    addMetricCard(6, 'Tasa Escalamiento', escalationRate, 'FFFBBF24');
-
-    // ========== GRÁFICOS (FILA 5+) ==========
-    row = 6;
-    let currentCol = 0;
-
-    const addChartImage = (key, col, row, width, height, label) => {
-      if (charts[key]) {
-        // Eliminar prefijo base64
-        const base64Data = charts[key].replace(/^data:image\/\w+;base64,/, "");
-        
-        if (base64Data.length >= 100) {
-          const imageId = workbook.addImage({
-            base64: base64Data,
-            extension: 'png',
-          });
-
-          // Etiqueta
-          sheet.mergeCells(`${String.fromCharCode(65 + col)}${row}:${String.fromCharCode(65 + col + 3)}${row}`);
-          const labelCell = sheet.getCell(`${String.fromCharCode(65 + col)}${row}`);
-          labelCell.value = label;
-          labelCell.font = { size: 11, bold: true, color: { argb: 'FF1F2937' } };
-          labelCell.alignment = { horizontal: 'left' };
-
-          // Imagen
-          sheet.addImage(imageId, {
-            tl: { col: col, row: row + 1 },
-            ext: { width: width, height: height }
-          });
-
-          return true;
-        }
-      }
-      return false;
-    };
-
-    // Gráfico 1: Atendidos por Nivel (Izquierda)
-    const chart1Height = addChartImage('levelAttendance', 0, row, 500, 280, 'Tickets Atendidos por Nivel') ? 16 : 0;
-
-    // Gráfico 2: Embudo (Centro)
-    const chart2Height = addChartImage('levelFunnel', 4, row, 500, 280, 'Embudo de Escalamiento') ? 16 : 0;
-
-    row += Math.max(chart1Height, chart2Height, 16);
-
-    // Gráfico 3: Top Escaladores (Ancho completo)
-    const chart3Height = addChartImage('levelEscalators', 0, row, 800, 300, 'Top Agentes que Escalaron a N2') ? 18 : 0;
-
-    row += chart3Height;
-
-    // ========== ESTADÍSTICAS DE TIEMPO (FILA FINAL) ==========
-    row += 2;
-
-    sheet.mergeCells(`A${row}:H${row}`);
-    const timeTitle = sheet.getCell(`A${row}`);
-    timeTitle.value = 'ESTADÍSTICAS DE TIEMPO POR NIVEL';
-    timeTitle.font = { size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
-    timeTitle.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0066CC' } };
-    timeTitle.alignment = { horizontal: 'left' };
-    sheet.getRow(row).height = 20;
-
-    row++;
-
-    // Tabla de tiempos N1
-    const timeHeaders = ['Métrica', 'Promedio', 'Mediana (p50)', 'P95'];
-    const startRow = row;
-    timeHeaders.forEach((header, idx) => {
-      const cell = sheet.getCell(`${String.fromCharCode(65 + idx)}${row}`);
-      cell.value = header;
-      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF6366F1' } };
-      cell.alignment = { horizontal: 'center', vertical: 'middle' };
-    });
-    sheet.getRow(row).height = 22;
-
-    row++;
-
-    // N1 row
-    sheet.getCell(`A${row}`).value = 'Nivel 1';
-    sheet.getCell(`A${row}`).font = { bold: true };
-    sheet.getCell(`B${row}`).value = levelData.timeStats?.n1?.avgHours ? `${levelData.timeStats.n1.avgHours.toFixed(1)} h` : 'N/A';
-    sheet.getCell(`C${row}`).value = levelData.timeStats?.n1?.medianHours ? `${levelData.timeStats.n1.medianHours.toFixed(1)} h` : 'N/A';
-    sheet.getCell(`D${row}`).value = levelData.timeStats?.n1?.p95Hours ? `${levelData.timeStats.n1.p95Hours.toFixed(1)} h` : 'N/A';
-    sheet.getRow(row).height = 20;
-
-    // Centrar valores
-    for (let i = 1; i < 4; i++) {
-      sheet.getCell(`${String.fromCharCode(65 + i)}${row}`).alignment = { horizontal: 'center' };
-    }
-
-    row++;
-
-    // N2 row
-    sheet.getCell(`A${row}`).value = 'Nivel 2';
-    sheet.getCell(`A${row}`).font = { bold: true };
-    sheet.getCell(`B${row}`).value = levelData.timeStats?.n2?.avgHours ? `${levelData.timeStats.n2.avgHours.toFixed(1)} h` : 'N/A';
-    sheet.getCell(`C${row}`).value = levelData.timeStats?.n2?.medianHours ? `${levelData.timeStats.n2.medianHours.toFixed(1)} h` : 'N/A';
-    sheet.getCell(`D${row}`).value = levelData.timeStats?.n2?.p95Hours ? `${levelData.timeStats.n2.p95Hours.toFixed(1)} h` : 'N/A';
-    sheet.getRow(row).height = 20;
-
-    // Centrar valores
-    for (let i = 1; i < 4; i++) {
-      sheet.getCell(`${String.fromCharCode(65 + i)}${row}`).alignment = { horizontal: 'center' };
-    }
-
-    // Colores para filas alternadas
-    for (let rowIdx = startRow + 1; rowIdx <= row; rowIdx++) {
-      const bgColor = (rowIdx - startRow - 1) % 2 === 0 ? 'FFFAFAFA' : 'FFFFFFFF';
-      for (let colIdx = 0; colIdx < 4; colIdx++) {
-        sheet.getCell(`${String.fromCharCode(65 + colIdx)}${rowIdx}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } };
-      }
-    }
+    const sheet = workbook.addWorksheet('Niveles de Soporte', { views: [{ showGridLines: true, zoomScale: 100 }] });
 
     // Anchos de columna
     sheet.columns = [
-      { width: 18 },
-      { width: 16 },
-      { width: 18 },
-      { width: 16 },
-      { width: 18 },
-      { width: 18 },
-      { width: 18 },
-      { width: 18 }
+      { width: 28 },  // A — Métrica / Etapa / Nivel / #
+      { width: 22 },  // B — Valor / Tickets / Promedio / Organización
+      { width: 22 },  // C — Mediana P50 / Tickets en N2
+      { width: 22 },  // D — P95
     ];
+
+    let row = 1;
+
+    // ── TÍTULO ──────────────────────────────────────────────
+    sheet.mergeCells(`A${row}:D${row}`);
+    const titleCell = sheet.getCell(`A${row}`);
+    titleCell.value = 'REPORTE DE NIVELES DE SOPORTE';
+    titleCell.font = { size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
+    titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0066CC' } };
+    titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+    sheet.getRow(row).height = 30;
+    row++;
+
+    // ── FILA VACÍA ───────────────────────────────────────────
+    row++;
+
+    // ── PERÍODO ──────────────────────────────────────────────
+    sheet.getCell(`A${row}`).value = 'Período del Reporte:';
+    sheet.getCell(`A${row}`).font = { bold: true };
+    sheet.getCell(`B${row}`).value = filters?.startDate && filters?.endDate
+      ? `${moment(filters.startDate).format('DD/MM/YYYY')} - ${moment(filters.endDate).format('DD/MM/YYYY')}`
+      : 'Todos los datos';
+    row++;
+
+    // ── FILA VACÍA ───────────────────────────────────────────
+    row++;
+
+    // ── SECCIÓN 1: KPIs GENERALES ────────────────────────────
+    // Título de sección — texto azul, sin fondo
+    sheet.getCell(`A${row}`).value = 'KPIs GENERALES';
+    sheet.getCell(`A${row}`).font = { bold: true, color: { argb: 'FF0066CC' }, size: 12 };
+    row++;
+
+    // Cabecera tabla
+    ['A', 'B'].forEach((col, idx) => {
+      const cell = sheet.getCell(`${col}${row}`);
+      cell.value = ['Métrica', 'Valor'][idx];
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0066CC' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    });
+    sheet.getRow(row).height = 20;
+    row++;
+
+    const escalationRate = levelData.escalation?.escalationRate != null
+      ? `${(levelData.escalation.escalationRate * 100).toFixed(1)}%`
+      : '0%';
+
+    const kpis = [
+      ['Total Tickets',        levelData.totalTickets || 0],
+      ['Atendidos N1',         levelData.byLevel?.n1?.handled || 0],
+      ['Atendidos N2',         levelData.byLevel?.n2?.handled || 0],
+      ['Agentes N1',           levelData.byLevel?.n1?.members || 0],
+      ['Agentes N2',           levelData.byLevel?.n2?.members || 0],
+      ['Tasa de Escalamiento', escalationRate],
+    ];
+
+    kpis.forEach(([label, value], idx) => {
+      const bg = idx % 2 === 0 ? 'FFFAFAFA' : 'FFFFFFFF';
+      const aCell = sheet.getCell(`A${row}`);
+      aCell.value = label;
+      aCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+      aCell.border = { bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } } };
+
+      const bCell = sheet.getCell(`B${row}`);
+      bCell.value = value;
+      bCell.alignment = { horizontal: 'right' };
+      bCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+      bCell.border = { bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } } };
+      row++;
+    });
+
+    // ── FILA VACÍA ───────────────────────────────────────────
+    row++;
+
+    // ── SECCIÓN 2: EMBUDO DE ESCALAMIENTO ────────────────────
+    sheet.getCell(`A${row}`).value = 'EMBUDO DE ESCALAMIENTO';
+    sheet.getCell(`A${row}`).font = { bold: true, color: { argb: 'FF0066CC' }, size: 12 };
+    row++;
+
+    ['A', 'B'].forEach((col, idx) => {
+      const cell = sheet.getCell(`${col}${row}`);
+      cell.value = ['Etapa', 'Tickets'][idx];
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0066CC' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    });
+    sheet.getRow(row).height = 20;
+    row++;
+
+    const embudo = [
+      ['Recibidos en N1', levelData.escalation?.receivedN1 || 0],
+      ['Resueltos en N1',  levelData.escalation?.resolvedN1  || 0],
+      ['Escalados a N2',   levelData.escalation?.escalatedN2 || 0],
+    ];
+
+    embudo.forEach(([label, value], idx) => {
+      const bg = idx % 2 === 0 ? 'FFFAFAFA' : 'FFFFFFFF';
+      const aCell = sheet.getCell(`A${row}`);
+      aCell.value = label;
+      aCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+      aCell.border = { bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } } };
+
+      const bCell = sheet.getCell(`B${row}`);
+      bCell.value = value;
+      bCell.alignment = { horizontal: 'right' };
+      bCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+      bCell.border = { bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } } };
+      row++;
+    });
+
+    // ── FILA VACÍA ───────────────────────────────────────────
+    row++;
+
+    // ── SECCIÓN 3: TIEMPOS POR NIVEL ─────────────────────────
+    sheet.getCell(`A${row}`).value = 'TIEMPOS POR NIVEL (horas)';
+    sheet.getCell(`A${row}`).font = { bold: true, color: { argb: 'FF0066CC' }, size: 12 };
+    row++;
+
+    [['A', 'Nivel'], ['B', 'Promedio (h)'], ['C', 'Mediana P50 (h)'], ['D', 'P95 (h)']].forEach(([col, label]) => {
+      const cell = sheet.getCell(`${col}${row}`);
+      cell.value = label;
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0066CC' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    });
+    sheet.getRow(row).height = 20;
+    row++;
+
+    [
+      ['Nivel 1', levelData.timeStats?.n1],
+      ['Nivel 2', levelData.timeStats?.n2],
+    ].forEach(([label, stats], idx) => {
+      const bg = idx % 2 === 0 ? 'FFFAFAFA' : 'FFFFFFFF';
+
+      ['A', 'B', 'C', 'D'].forEach(col => {
+        sheet.getCell(`${col}${row}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+        sheet.getCell(`${col}${row}`).border = { bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } } };
+      });
+
+      sheet.getCell(`A${row}`).value = label;
+
+      const avg = stats?.avgHours != null ? +stats.avgHours.toFixed(2) : null;
+      const med = stats?.medianHours != null ? +stats.medianHours.toFixed(2) : null;
+      const p95 = stats?.p95Hours != null ? +stats.p95Hours.toFixed(2) : null;
+
+      sheet.getCell(`B${row}`).value = avg ?? 'N/A';
+      sheet.getCell(`C${row}`).value = med ?? 'N/A';
+      sheet.getCell(`D${row}`).value = p95 ?? 'N/A';
+
+      ['B', 'C', 'D'].forEach(col => {
+        const cell = sheet.getCell(`${col}${row}`);
+        cell.alignment = { horizontal: 'right' };
+        if (typeof cell.value === 'number') cell.numFmt = '#,##0.00';
+      });
+
+      row++;
+    });
+
+    // ── FILA VACÍA ───────────────────────────────────────────
+    row++;
+
+    // ── SECCIÓN 4: TOP ORGANIZACIONES EN N2 ──────────────────
+    // Lista completa sin límite (a diferencia del frontend que pagina)
+    const orgsN2 = levelData.topOrganizationsN2 || [];
+    if (orgsN2.length > 0) {
+      sheet.getCell(`A${row}`).value = 'TOP ORGANIZACIONES EN N2';
+      sheet.getCell(`A${row}`).font = { bold: true, color: { argb: 'FF0066CC' }, size: 12 };
+      row++;
+
+      [['A', '#'], ['B', 'Organización'], ['C', 'Tickets en N2']].forEach(([col, label]) => {
+        const cell = sheet.getCell(`${col}${row}`);
+        cell.value = label;
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0066CC' } };
+        cell.alignment = { horizontal: col === 'B' ? 'left' : 'center', vertical: 'middle' };
+      });
+      sheet.getRow(row).height = 20;
+      row++;
+
+      orgsN2.forEach((org, idx) => {
+        const bg = idx % 2 === 0 ? 'FFFAFAFA' : 'FFFFFFFF';
+
+        sheet.getCell(`A${row}`).value = idx + 1;
+        sheet.getCell(`A${row}`).alignment = { horizontal: 'center' };
+
+        sheet.getCell(`B${row}`).value = org.organizationName;
+
+        sheet.getCell(`C${row}`).value = org.ticketCount;
+        sheet.getCell(`C${row}`).numFmt = '#,##0';
+        sheet.getCell(`C${row}`).alignment = { horizontal: 'right' };
+
+        ['A', 'B', 'C'].forEach(col => {
+          sheet.getCell(`${col}${row}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+          sheet.getCell(`${col}${row}`).border = { bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } } };
+        });
+
+        row++;
+      });
+    }
   }
 
   createSummarySheet(workbook, metrics, filters) {
