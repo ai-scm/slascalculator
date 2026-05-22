@@ -15,32 +15,22 @@ function initializeCronJobs() {
     console.error('❌ Error en exportación inicial:', err.message);
   });
 
-  // CRON 6 veces al día de Lunes a Sábado (06:00 - 22:00) Colombia
+  // CRON cada hora de Lunes a Sábado (06:00 - 22:00) Colombia
   // Sincronizado con Glue Crawler que se dispara automáticamente después de cada exportación
-  const horarios = [
-    { expr: '0 6 * * 1-6',  label: '06:00' },
-    { expr: '0 9 * * 1-6',  label: '09:00' },
-    { expr: '0 12 * * 1-6', label: '12:00' },
-    { expr: '0 15 * * 1-6', label: '15:00' },
-    { expr: '0 18 * * 1-6', label: '18:00' },
-    { expr: '0 22 * * 1-6', label: '22:00' },
-  ];
-
-  horarios.forEach(({ expr, label }) => {
-    cron.schedule(expr, async () => {
-      console.log(`⏰ CRON TRIGGER [${label}]: Hora de exportar SLA`);
-      try {
-        await exportSLAToQuickSight();
-      } catch (error) {
-        console.error('❌ Error en CRON:', error.message);
-        logger.error('Error en CRON', error);
-      }
-    }, {
-      timezone: 'America/Bogota'
-    });
+  cron.schedule('0 6-22 * * 1-6', async () => {
+    const now = new Date().toLocaleTimeString('es-CO', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit' });
+    console.log(`⏰ CRON TRIGGER [${now}]: Hora de exportar SLA`);
+    try {
+      await exportSLAToQuickSight();
+    } catch (error) {
+      console.error('❌ Error en CRON:', error.message);
+      logger.error('Error en CRON', error);
+    }
+  }, {
+    timezone: 'America/Bogota'
   });
 
-  console.log('✓ CRON programado: 6 ejecuciones diarias (06:00 | 09:00 | 12:00 | 15:00 | 18:00 | 22:00)');
+  console.log('✓ CRON programado: cada hora entre 06:00 y 22:00 (17 ejecuciones diarias)');
   console.log('✓ Días activos: Lunes a Sábado (sin domingos)');
   console.log('✓ Zona horaria: America/Bogota\n');
 }
