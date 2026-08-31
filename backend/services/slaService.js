@@ -358,13 +358,13 @@ class SLAService {
     let paramCount = 1;
     
     if (startDate) {
-      query += ` AND t.created_at >= $${paramCount}`;
+      query += ` AND t.close_at >= $${paramCount}`;
       params.push(startDate);
       paramCount++;
     }
-    
+
     if (endDate) {
-      query += ` AND t.created_at <= $${paramCount}`;
+      query += ` AND t.close_at <= $${paramCount}`;
       params.push(`${endDate} 23:59:59`);
       paramCount++;
     }

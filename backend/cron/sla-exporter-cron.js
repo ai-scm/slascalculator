@@ -70,9 +70,50 @@ async function uploadFileToS3(localPath, tableName, timestamp) {
   return locations;
 }
 
+// ponytail: red de seguridad ante fallos de subida a S3 (IAM, red, etc.) que dejarían
+// parquet huérfanos para siempre — borra localmente lo que sobreviva más de RETENTION_DAYS
+// independientemente de si se subió o no. Si se necesita reintentar subidas fallidas, cambiar por una cola real.
+const RETENTION_DAYS = 3;
+
+function cleanupOldLocalExports() {
+  const root = path.join(__dirname, '../../exports/sla-data');
+  const cutoff = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  let removed = 0;
+
+  function walk(dir) {
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (e) {
+      return;
+    }
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(fullPath);
+        try { fs.rmdirSync(fullPath); } catch (e) { /* no vacío, se deja */ }
+      } else if (entry.isFile() && fullPath.endsWith('.parquet')) {
+        const stat = fs.statSync(fullPath);
+        if (stat.mtimeMs < cutoff) {
+          fs.unlinkSync(fullPath);
+          removed++;
+        }
+      }
+    }
+  }
+
+  walk(root);
+  if (removed > 0) {
+    console.log(`   Limpieza: ${removed} parquet locales con más de ${RETENTION_DAYS} días eliminados`);
+    logger.info('Cleanup local exports', { removed, retentionDays: RETENTION_DAYS });
+  }
+}
+
 async function exportSLAToQuickSight() {
   const startTime = Date.now();
   try {
+    cleanupOldLocalExports();
+
     // 1) Fetch data
     console.log('1) Fetching data from SLAService...');
     const tickets = await SLAService.getTicketsWithSLA();
